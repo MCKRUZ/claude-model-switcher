@@ -1,0 +1,4 @@
+port: 8787
+rules:
+  - id: broken
+    when: { unclosed

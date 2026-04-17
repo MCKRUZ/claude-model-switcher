@@ -1,0 +1,6 @@
+pricing:
+  claude-opus-4-7:
+    input: "oops"
+    output: 75
+    cacheRead: 1.5
+    cacheCreate: 18.75

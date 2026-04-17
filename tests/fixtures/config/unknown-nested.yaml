@@ -1,0 +1,3 @@
+classifier:
+  enabled: true
+  futureFlag: true

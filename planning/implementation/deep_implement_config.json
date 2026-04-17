@@ -34,6 +34,10 @@
     "section-01-repo-skeleton": {
       "status": "complete",
       "commit_hash": "de22d444e2f426d99a975e72c822677d2db998c4"
+    },
+    "section-02-logging-paths": {
+      "status": "complete",
+      "commit_hash": "7d2df7ae5118701b417f2466f475a0cf660dc027"
     }
   },
   "pre_commit": {

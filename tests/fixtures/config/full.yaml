@@ -1,0 +1,45 @@
+port: 8787
+mode: live
+
+security:
+  requireProxyToken: false
+
+rules:
+  - id: plan-mode-opus
+    when: { planMode: true }
+    then: { choice: opus }
+
+classifier:
+  enabled: true
+  model: claude-haiku-4-5-20251001
+  timeoutMs: 800
+  confidenceThresholds:
+    haiku: 0.6
+    heuristic: 0.4
+
+stickyModel:
+  enabled: true
+  sessionTtlMs: 7200000
+
+modelTiers:
+  claude-opus-4-7: opus
+  claude-sonnet-4-6: sonnet
+  claude-haiku-4-5-20251001: haiku
+
+logging:
+  content: hashed
+  fsync: false
+  rotation:
+    strategy: daily
+    keep: 30
+    maxMb: 10
+
+dashboard:
+  port: 8788
+
+pricing:
+  claude-opus-4-7:
+    input: 15
+    output: 75
+    cacheRead: 1.5
+    cacheCreate: 18.75

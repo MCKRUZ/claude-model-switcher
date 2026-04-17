@@ -16,15 +16,26 @@ This section delivers the schema, loader, validator, and default-merge logic onl
 
 All paths are project-relative.
 
-- `src/config/schema.ts` — TypeScript types + zod (or hand-rolled) validator describing every documented key.
-- `src/config/loader.ts` — reads YAML from a given path, parses, validates, returns `Result<CcmuxConfig, ConfigError[]>`.
+- `src/config/schema.ts` — TypeScript types only (`CcmuxConfig`, `ConfigError`, `ValidateResult`, per-section interfaces).
+- `src/config/validate.ts` — top-level `validateConfig()` + compact reader helpers (`readBool`, `readEnum`, `readPort`, `readNumInRange`, etc.).
+- `src/config/validate-rules.ts` — rule-shape validator, split out to stay under the 400-line cap.
+- `src/config/loader.ts` — reads YAML from a given path, parses with `js-yaml` + `CORE_SCHEMA` (YAML 1.2), validates, returns `Result<LoadedConfig, ConfigError[]>`.
 - `src/config/defaults.ts` — shipped default values (used to fill optional sections).
-- `src/config/paths.ts` — resolves the default config path (`~/.config/ccmux/config.yaml`) cross-platform. If `section-02-logging-paths` has already landed a shared XDG helper, import it from there instead of duplicating.
-- `src/config/index.ts` — public barrel: `loadConfig`, `CcmuxConfig`, `ConfigError`.
-- `src/types/result.ts` — shared `Result<T, E>` type if not already created in section 01.
-- `tests/config/loader.test.ts` — validation + forward-compat tests.
-- `tests/config/schema.test.ts` — per-section schema tests.
-- `tests/fixtures/config/` — golden YAML fixtures (`minimal.yaml`, `full.yaml`, `unknown-key.yaml`, `invalid-rule.yaml`, `bad-pricing.yaml`).
+- `src/config/paths.ts` — already landed in section-02; reused via `resolvePaths()`.
+- `src/config/index.ts` — public barrel: `loadConfig`, `validateConfig`, `defaultConfig`, types.
+- `src/types/result.ts` — shared `Result<T, E>` type with `ok`/`fail` factories.
+- `tests/config/loader.test.ts` — validation + forward-compat tests (11 tests, incl. `CCMUX_HOME` override).
+- `tests/config/schema.test.ts` — per-section schema tests (8 tests, incl. duplicate-rule-id + null-root).
+- `tests/fixtures/config/` — golden YAML fixtures (`minimal.yaml`, `full.yaml`, `unknown-top.yaml`, `unknown-nested.yaml`, `invalid-rule.yaml`, `invalid-enum.yaml`, `invalid-yaml.yaml`, `bad-pricing.yaml`).
+
+### Deviations from original plan
+
+- **Hand-rolled validator instead of zod** — keeps dependency footprint small; errors carry JSON-pointer paths directly without a library dep.
+- **`js-yaml` (already installed) instead of adding `yaml`** — loader uses `CORE_SCHEMA` (YAML 1.2) after code review flagged YAML 1.1 quirks (`yes`/`no` → booleans, octal number surprises).
+- **`validate.ts` + `validate-rules.ts` split** — total validator logic exceeded the 400-line cap when inlined in `schema.ts`; factored out with compact reader helpers (`readBool`, `readEnum`, `readPort`, `readNumInRange`, etc.) to keep each function ≤50 lines.
+- **`schema.ts` is types-only** — easier to import without pulling the validator implementation into barrel consumers.
+- **Existing stub `src/config/load.ts`** (from section-01 skeleton) was removed; the real module is `loader.ts` per this section's spec.
+- **`validateRules` drops rules with empty `id` or empty `then.choice`** — errors are still collected, but the rule is not pushed into `config.rules`, preventing malformed entries from leaking to callers that use `validateConfig()` without checking `errors`.
 
 ## Runtime dependencies to add
 

@@ -1,0 +1,4 @@
+port: 8787
+telemetry:
+  enabled: true
+  endpoint: https://example.invalid/metrics
