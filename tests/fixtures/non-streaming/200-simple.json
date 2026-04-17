@@ -1,0 +1,17 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "x-request-id": "req_simple_01",
+    "anthropic-ratelimit-requests-remaining": "99"
+  },
+  "body": {
+    "id": "msg_simple_01",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-6",
+    "content": [{"type": "text", "text": "Hi."}],
+    "stop_reason": "end_turn",
+    "usage": {"input_tokens": 5, "output_tokens": 2}
+  }
+}

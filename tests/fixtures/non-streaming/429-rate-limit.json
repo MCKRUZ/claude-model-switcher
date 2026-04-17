@@ -1,0 +1,15 @@
+{
+  "status": 429,
+  "headers": {
+    "content-type": "application/json",
+    "x-request-id": "req_rl_01",
+    "retry-after": "15",
+    "anthropic-ratelimit-requests-limit": "100",
+    "anthropic-ratelimit-requests-remaining": "0",
+    "anthropic-ratelimit-requests-reset": "2026-04-17T12:00:00Z"
+  },
+  "body": {
+    "type": "error",
+    "error": {"type": "rate_limit_error", "message": "Too many requests"}
+  }
+}

@@ -1,0 +1,7 @@
+{"ts":0,"event":"message_start","data":"{\"type\":\"message_start\",\"message\":{\"id\":\"msg_02abc\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-sonnet-4-6\",\"stop_reason\":null,\"usage\":{\"input_tokens\":12,\"output_tokens\":1}}}"}
+{"ts":20,"event":"content_block_start","data":"{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tool_01\",\"name\":\"get_weather\",\"input\":{}}}"}
+{"ts":35,"event":"content_block_delta","data":"{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"city\\\":\"}}"}
+{"ts":55,"event":"content_block_delta","data":"{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"SF\\\"}\"}}"}
+{"ts":75,"event":"content_block_stop","data":"{\"type\":\"content_block_stop\",\"index\":0}"}
+{"ts":90,"event":"message_delta","data":"{\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"},\"usage\":{\"output_tokens\":8}}"}
+{"ts":105,"event":"message_stop","data":"{\"type\":\"message_stop\"}"}

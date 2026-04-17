@@ -1,0 +1,4 @@
+{"ts":0,"event":"message_start","data":"{\"type\":\"message_start\",\"message\":{\"id\":\"msg_03\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-sonnet-4-6\",\"stop_reason\":null,\"usage\":{\"input_tokens\":5,\"output_tokens\":1}}}"}
+{"ts":20,"event":"weird-new-type","data":"{\"type\":\"weird-new-type\",\"payload\":{\"a\":1,\"b\":[\"nested\"]}}"}
+{"ts":40,"event":"content_block_delta","data":"{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}"}
+{"ts":60,"event":"message_stop","data":"{\"type\":\"message_stop\"}"}

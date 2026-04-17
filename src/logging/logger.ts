@@ -1,7 +1,7 @@
 // Shared pino logger factory with fixed auth-header redaction.
 
 import { join } from 'node:path';
-import pino, { type Logger, type LoggerOptions as PinoOptions, type Level } from 'pino';
+import pino, { type Logger, type LoggerOptions as PinoOptions, type LevelWithSilent } from 'pino';
 import { sanitizeHeaders } from '../privacy/redact.js';
 
 export const REDACT_PATHS: readonly string[] = [
@@ -29,17 +29,17 @@ function serializeReq(value: unknown): unknown {
 export interface LoggerOptions {
   readonly destination: 'stderr' | 'file';
   readonly logDir?: string;
-  readonly level?: Level;
+  readonly level?: LevelWithSilent;
   readonly env?: NodeJS.ProcessEnv;
 }
 
-function isLevel(value: string): value is Level {
+function isLevel(value: string): value is LevelWithSilent {
   return ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'].includes(
     value,
   );
 }
 
-function resolveLevel(opts: LoggerOptions): Level {
+function resolveLevel(opts: LoggerOptions): LevelWithSilent {
   if (opts.level) return opts.level;
   const env = opts.env ?? process.env;
   const explicit = env.CCMUX_LOG_LEVEL;

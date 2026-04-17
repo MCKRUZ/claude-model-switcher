@@ -1,0 +1,11 @@
+{
+  "status": 400,
+  "headers": {
+    "content-type": "application/json",
+    "x-request-id": "req_bad_01"
+  },
+  "body": {
+    "type": "error",
+    "error": {"type": "invalid_request_error", "message": "messages: field required"}
+  }
+}

@@ -348,3 +348,27 @@ Run against a real local HTTP listener serving the fixture JSONL files with pres
 - `bindWithFallback` is consumed by `section-05-cli-start-and-ports` to implement `ccmux start --port`.
 - The undici Agent in `upstream.ts` is reused by the Haiku classifier in section-12 (same connection pool).
 - The decision-log hook point is the return value of the hot-path handler. Section-13 will wrap it; do not add that wrapper here.
+
+## Actual Implementation Notes
+
+**Status:** 99/99 tests passing, typecheck clean, lint clean.
+
+**Deviations from plan:**
+
+- **`token-gate.ts` renamed to `token.ts`** — simpler path, no behavior change.
+- **`reject-h2.ts` removed after code review** — the file existed during initial implementation but was dead code: Node's HTTP/1.1 parser rejects `PRI * HTTP/2.0` at the socket level before any Fastify hook runs, so `req.method === 'PRI'` was never reachable. Defense lives in `server.ts:registerHttp2PrefaceGuard` via a `clientError` `prependListener` that sniffs `err.rawPacket` for the H2 preface prefix and returns a framed 505 (with Content-Length). Non-H2 errors fall through to Fastify's default handler.
+- **`abort.ts` listens on TCP socket `close`, not IncomingMessage `close`** — IncomingMessage fires 'close' as soon as the request body is fully read, which spuriously aborts long streaming responses. We attempted belt-and-braces (both listeners) during code review but reverted after 28 tests regressed. TCP socket is the authoritative signal. The `'aborted'` event is also hooked for older Node compatibility.
+- **`hot-path.ts` Writable `destroy()` override** — on mid-stream upstream error, emits a synthetic SSE `event: error` frame if headers have already been sent, then calls `raw.destroy(err)` to free the client socket. This is the sole permitted synthetic SSE output.
+- **`body-splice.ts` accepts any JSON value** — the initial implementation rejected non-object bodies with 400. Code review (forward-compat invariant) removed that check; parsed is passed through as-is. Phase 1 model rewriting will only act on object-shaped bodies.
+- **`headers.ts` strips `Expect: 100-continue` outbound** — pragmatic: Claude SDKs don't send it, undici handles its own framing, and forwarding would require matching 100-continue semantics. Documented inline.
+- **Path construction in `hot-path.ts` / `pass-through.ts`** — originally used `new URL(req.url, 'http://placeholder')` for path extraction. Code review flagged SSRF surface; replaced with a guard that returns `'/'` if `req.url` doesn't start with `/`, then returns `req.url` verbatim (Node's parser already normalizes to origin-form).
+- **`server.ts` uses `as unknown as FastifyInstance` cast** — Fastify's default `Logger` generic doesn't match our pino Logger's extended generics. The cast is load-bearing; removing it breaks typecheck on `app.route({...})` overloads.
+- **`logging/logger.ts` changed `Level` → `LevelWithSilent`** — tests use `{ level: 'silent' }` which isn't part of pino's narrow `Level` type. Incidental to this section but committed together.
+
+**Files actually created/modified (35 files, 2124 insertions):**
+
+- src: proxy/{server,hot-path,pass-through,body-splice,headers,upstream,abort,errors,health,token}.ts, lifecycle/ports.ts, logging/logger.ts, config/{schema,defaults}.ts, privacy/redact.ts, types/result.ts, main .eslintrc.cjs/tsconfig.eslint.json/tsconfig.json/vitest.config.ts/package.json
+- tests: proxy/{faithfulness.non-streaming,faithfulness.streaming,headers,body,streaming,health,errors,token,passthrough,http2-reject,expect-continue,forward-compat,abort}.test.ts + helpers/{build-proxy,http-client,upstream-mock}.ts + replay-server.ts
+- fixtures: sse/{basic,with-tool-use,unknown-event-type}.jsonl + non-streaming/{200-simple,400-validation,429-rate-limit}.json
+
+**Code review artifacts:** `planning/implementation/code_review/section-04-{diff,review,interview}.md`
