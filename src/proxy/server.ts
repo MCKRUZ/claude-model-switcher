@@ -6,6 +6,7 @@ import { makeHotPathHandler } from './hot-path.js';
 import { passThrough } from './pass-through.js';
 import { makeHealthHandler } from './health.js';
 import { checkProxyToken } from './token.js';
+import { registerRejectHttp2 } from './reject-h2.js';
 
 export interface ProxyServerOptions {
   readonly port: number;
@@ -35,31 +36,9 @@ export async function createProxyServer(opts: ProxyServerOptions): Promise<Fasti
   registerErrorHandler(instance);
   registerSecurityHooks(instance, opts);
   registerRoutes(instance, opts);
-  registerHttp2PrefaceGuard(instance);
+  registerRejectHttp2(instance);
 
   return instance;
-}
-
-function registerHttp2PrefaceGuard(app: FastifyInstance): void {
-  // Node's HTTP/1.1 parser rejects "PRI * HTTP/2.0" before any Fastify hook runs.
-  // Prepend a listener that only handles the H2 preface; anything else falls
-  // through to Fastify's default clientError handler.
-  const h2PrefacePrefix = Buffer.from('PRI * HTTP/2', 'utf8');
-  app.server.prependListener('clientError', (err, socket) => {
-    const rawPacket = (err as { rawPacket?: Buffer }).rawPacket;
-    const looksLikeH2 = rawPacket !== undefined
-      && rawPacket.length >= h2PrefacePrefix.length
-      && rawPacket.subarray(0, h2PrefacePrefix.length).equals(h2PrefacePrefix);
-    if (!looksLikeH2 || socket.destroyed) return;
-    const body = '{"error":"http2-not-supported"}';
-    socket.end(
-      `HTTP/1.1 505 HTTP Version Not Supported\r\n` +
-      `Content-Type: application/json\r\n` +
-      `Content-Length: ${Buffer.byteLength(body)}\r\n` +
-      `Connection: close\r\n\r\n` +
-      body,
-    );
-  });
 }
 
 function registerHostGuard(app: FastifyInstance): void {

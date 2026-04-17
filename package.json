@@ -7,11 +7,12 @@
     "node": ">=20"
   },
   "bin": {
-    "ccmux": "dist/cli/main.js"
+    "ccmux": "bin/ccmux.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
+    "bin",
     "dist",
     "README.md",
     "LICENSE"

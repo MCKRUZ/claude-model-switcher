@@ -130,3 +130,38 @@ Extract from `claude-plan-tdd.md` §6.6 (ports/bind), §6.8 (proxy token interpl
 - `node bin/ccmux.js status` in another terminal reports the running PID and port.
 - All tests above pass.
 - `src/lifecycle/ports.ts`, `src/proxy/reject-h2.ts`, and every `src/cli/*.ts` file are each under 150 lines.
+
+## Implementation Record (post-review)
+
+### Deviations from plan
+
+- **PID file location:** spec line 113 said `paths.configDir()`, but section-02's `resolvePaths()` put `pidFile` under `stateDir` (XDG runtime convention). We kept the stateDir path — tests align with `paths.pidFile` directly and the XDG conformance outweighs strict spec text.
+- **Version source:** spec line 117 called for `import pkg from '../../package.json' with { type: 'json' }`. Node 20 + TS 5.4 + moduleResolution "bundler" gives inconsistent behavior for JSON import attributes across the vitest / tsc boundary, so we read `package.json` once at module load via `readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)))`. Same one-shot semantics; works identically from src/ (tests) and dist/ (runtime).
+- **`bindWithFallback` retained:** section-04's `bindWithFallback(fastify, startPort, maxAttempts) → { port }` is kept as a thin alias over the new `listenWithFallback(server, host, startPort, maxAttempts)`. `tests/proxy/health.test.ts` imports it; removal would break section-04's test surface without a functional win.
+
+### Files created
+
+- `src/proxy/reject-h2.ts` (47 lines) — H2 preface `clientError` rejection + belt-and-suspenders `onRequest` PRI method guard (spec §6.6 line 72).
+- `src/lifecycle/ports.ts` (rewritten, 72 lines) — `listenWithFallback` primary + `bindWithFallback` alias.
+- `src/cli/main.ts` (75 lines), `src/cli/start.ts` (96 lines), `src/cli/status.ts` (113 lines), `src/cli/version.ts` (32 lines).
+- `bin/ccmux.js` (6 lines) — shebang shim.
+- `tests/cli/main.test.ts`, `tests/cli/start.test.ts`, `tests/cli/status.test.ts`, `tests/cli/version.test.ts`, `tests/proxy/ports.test.ts`, `tests/proxy/reject-h2.test.ts`.
+
+### Files modified
+
+- `src/proxy/server.ts` — removed inline `registerHttp2PrefaceGuard`; delegates to `registerRejectHttp2`.
+- `package.json` — added `bin.ccmux → bin/ccmux.js`; added `bin` to `files`.
+
+### Code-review fixes applied (see `planning/implementation/code_review/section-05-{diff,review,interview}.md`)
+
+- Hard-timeout in `installShutdownHandlers` now `process.exit(1)` with stderr log (spec line 115); removed `.unref()` so the force-exit branch can fire.
+- `installShutdownHandlers` explicitly removes its `SIGINT`/`SIGTERM` listeners after graceful close — no handler leak across repeated invocations.
+- `reject-h2.ts` adds a Fastify `onRequest` hook that rejects requests with `req.raw.method === 'PRI'` as a second line of defense (spec §6.6 line 72).
+- `runStatus` now distinguishes three PID-file states: missing (`not running`), corrupt (`PID file corrupt at <path>`, no unlink — preserves evidence), and ok.
+- Test: `tests/cli/main.test.ts` tightened unknown-command assertion to `toBe(1)` per spec line 95.
+- Tests added: corrupt-PID handling, PID file/dir permission modes (0o600/0o700, POSIX-only via `it.skipIf`), SIGINT→graceful-shutdown listener removal and `/healthz` stop.
+
+### Final counts
+
+- 25 test files, 120 tests passing, 1 skipped (POSIX-only perm-mode test on Windows host).
+- `npm run typecheck` clean.
