@@ -1,0 +1,43 @@
+{
+  "plugin_root": "C:\\Users\\kruz7\\.claude\\plugins\\cache\\piercelamb-plugins\\deep-implement\\0.2.0",
+  "sections_dir": "C:\\Users\\kruz7\\OneDrive\\Documents\\Code Repos\\MCKRUZ\\claude-model-switcher\\planning\\sections",
+  "target_dir": "C:\\Users\\kruz7\\OneDrive\\Documents\\Code Repos\\MCKRUZ\\claude-model-switcher",
+  "state_dir": "C:\\Users\\kruz7\\OneDrive\\Documents\\Code Repos\\MCKRUZ\\claude-model-switcher\\planning\\implementation",
+  "git_root": "C:\\Users\\kruz7\\OneDrive\\Documents\\Code Repos\\MCKRUZ\\claude-model-switcher",
+  "commit_style": "conventional",
+  "test_command": "uv run pytest",
+  "sections": [
+    "section-01-repo-skeleton",
+    "section-02-logging-paths",
+    "section-03-config",
+    "section-04-proxy-phase0",
+    "section-05-cli-start-and-ports",
+    "section-06-config-watcher",
+    "section-07-signals",
+    "section-08-policy",
+    "section-09-sticky-model",
+    "section-10-wrapper",
+    "section-11-classifier-heuristic",
+    "section-12-classifier-haiku",
+    "section-13-decision-log",
+    "section-14-outcome-tagger",
+    "section-15-report-cli",
+    "section-16-tune",
+    "section-17-dashboard-server",
+    "section-18-dashboard-spa",
+    "section-19-init-and-recipes",
+    "section-20-explain",
+    "section-21-release-ci",
+    "section-22-docs"
+  ],
+  "sections_state": {},
+  "pre_commit": {
+    "present": false,
+    "type": "none",
+    "config_file": null,
+    "native_hook": null,
+    "may_modify_files": false,
+    "detected_formatters": []
+  },
+  "created_at": "2026-04-17T15:49:18.140960+00:00"
+}

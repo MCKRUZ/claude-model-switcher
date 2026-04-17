@@ -1,0 +1,47 @@
+{
+  "name": "ccmux",
+  "version": "0.0.0",
+  "description": "Claude model switcher / routing proxy (ccmux).",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "ccmux": "dist/cli/main.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.eslint.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:all": "npm run lint && npm run typecheck && npm run test"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "commander": "^12.1.0",
+    "fastify": "^4.28.1",
+    "js-yaml": "^4.1.0",
+    "pino": "^9.3.2",
+    "pino-pretty": "^11.2.1",
+    "undici": "^6.19.7"
+  },
+  "devDependencies": {
+    "@types/eslint": "^8.56.12",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.12",
+    "@typescript-eslint/eslint-plugin": "^7.17.0",
+    "@typescript-eslint/parser": "^7.17.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  }
+}
