@@ -30,7 +30,12 @@
     "section-21-release-ci",
     "section-22-docs"
   ],
-  "sections_state": {},
+  "sections_state": {
+    "section-01-repo-skeleton": {
+      "status": "complete",
+      "commit_hash": "de22d444e2f426d99a975e72c822677d2db998c4"
+    }
+  },
   "pre_commit": {
     "present": false,
     "type": "none",

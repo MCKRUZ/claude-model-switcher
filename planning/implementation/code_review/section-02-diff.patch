@@ -1,0 +1,450 @@
+diff --git a/src/config/paths.ts b/src/config/paths.ts
+index bd504bc..e6fce82 100644
+--- a/src/config/paths.ts
++++ b/src/config/paths.ts
+@@ -1,2 +1,58 @@
+-// Populated in section-02. Do not import.
+-export {};
++// Cross-platform XDG-style path resolver for ccmux.
++
++import { homedir } from 'node:os';
++import { join } from 'node:path';
++import { mkdirSync } from 'node:fs';
++
++export interface CcmuxPaths {
++  readonly configDir: string;
++  readonly configFile: string;
++  readonly logDir: string;
++  readonly decisionLogDir: string;
++  readonly stateDir: string;
++  readonly pidFile: string;
++}
++
++function resolveConfigDir(
++  env: NodeJS.ProcessEnv,
++  platform: NodeJS.Platform,
++): string {
++  if (env.CCMUX_HOME && env.CCMUX_HOME.length > 0) {
++    return env.CCMUX_HOME;
++  }
++  if (env.XDG_CONFIG_HOME && env.XDG_CONFIG_HOME.length > 0) {
++    return join(env.XDG_CONFIG_HOME, 'ccmux');
++  }
++  if (platform === 'win32') {
++    const appData = env.APPDATA;
++    if (appData && appData.length > 0) {
++      return join(appData, 'ccmux');
++    }
++  }
++  return join(homedir(), '.config', 'ccmux');
++}
++
++export function resolvePaths(
++  env: NodeJS.ProcessEnv = process.env,
++  platform: NodeJS.Platform = process.platform,
++): CcmuxPaths {
++  const configDir = resolveConfigDir(env, platform);
++  const logDir = join(configDir, 'logs');
++  const decisionLogDir = join(logDir, 'decisions');
++  const stateDir = join(configDir, 'state');
++  return {
++    configDir,
++    configFile: join(configDir, 'config.yaml'),
++    logDir,
++    decisionLogDir,
++    stateDir,
++    pidFile: join(stateDir, 'ccmux.pid'),
++  };
++}
++
++export function ensureDirs(paths: CcmuxPaths): void {
++  const dirs = [paths.configDir, paths.logDir, paths.decisionLogDir, paths.stateDir];
++  for (const dir of dirs) {
++    mkdirSync(dir, { recursive: true, mode: 0o700 });
++  }
++}
+diff --git a/src/logging/logger.ts b/src/logging/logger.ts
+index bd504bc..db66ed0 100644
+--- a/src/logging/logger.ts
++++ b/src/logging/logger.ts
+@@ -1,2 +1,65 @@
+-// Populated in section-02. Do not import.
+-export {};
++// Shared pino logger factory with fixed auth-header redaction.
++
++import { join } from 'node:path';
++import pino, { type Logger, type LoggerOptions as PinoOptions, type Level } from 'pino';
++
++export const REDACT_PATHS: readonly string[] = [
++  'req.headers.authorization',
++  'req.headers["x-api-key"]',
++  'req.headers["x-ccmux-token"]',
++  'headers.authorization',
++  'headers["x-api-key"]',
++  'headers["x-ccmux-token"]',
++  'err.config.headers.authorization',
++];
++
++export interface LoggerOptions {
++  readonly destination: 'stderr' | 'file';
++  readonly logDir?: string;
++  readonly level?: Level;
++  readonly env?: NodeJS.ProcessEnv;
++}
++
++function isLevel(value: string): value is Level {
++  return ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'].includes(
++    value,
++  );
++}
++
++function resolveLevel(opts: LoggerOptions): Level {
++  if (opts.level) return opts.level;
++  const env = opts.env ?? process.env;
++  const explicit = env.CCMUX_LOG_LEVEL;
++  if (explicit && isLevel(explicit)) return explicit;
++  if (env.CCMUX_DEBUG === '1') return 'debug';
++  return 'info';
++}
++
++function buildDestination(opts: LoggerOptions): pino.DestinationStream {
++  if (opts.destination === 'file') {
++    if (!opts.logDir) {
++      throw new Error('createLogger: logDir is required when destination="file"');
++    }
++    return pino.destination({
++      dest: join(opts.logDir, 'ccmux.log'),
++      sync: false,
++      mkdir: false,
++    });
++  }
++  return pino.destination(2);
++}
++
++export function createLogger(opts: LoggerOptions): Logger {
++  const pinoOpts: PinoOptions = {
++    level: resolveLevel(opts),
++    redact: { paths: [...REDACT_PATHS], censor: '[Redacted]' },
++  };
++  return pino(pinoOpts, buildDestination(opts));
++}
++
++export function childLogger(
++  logger: Logger,
++  bindings: Record<string, unknown>,
++): Logger {
++  return logger.child(bindings);
++}
+diff --git a/src/privacy/redact.ts b/src/privacy/redact.ts
+index bd504bc..995d417 100644
+--- a/src/privacy/redact.ts
++++ b/src/privacy/redact.ts
+@@ -1,2 +1,31 @@
+-// Populated in section-02. Do not import.
+-export {};
++// Header sanitizer. Shared by logger, error paths, and test assertions.
++
++export const SANITIZABLE_HEADER_NAMES: ReadonlySet<string> = new Set([
++  'authorization',
++  'x-api-key',
++  'x-ccmux-token',
++]);
++
++const REDACTED = '[REDACTED]';
++
++type HeaderValue = string | string[] | undefined;
++
++export function sanitizeHeaders<H extends Record<string, HeaderValue>>(
++  headers: H,
++): H {
++  const out: Record<string, HeaderValue> = {};
++  for (const key of Object.keys(headers)) {
++    const value = headers[key];
++    if (value === undefined) {
++      out[key] = undefined;
++      continue;
++    }
++    const shouldRedact = SANITIZABLE_HEADER_NAMES.has(key.toLowerCase());
++    if (!shouldRedact) {
++      out[key] = value;
++      continue;
++    }
++    out[key] = Array.isArray(value) ? [REDACTED] : REDACTED;
++  }
++  return out as H;
++}
+diff --git a/tests/logging/logger.test.ts b/tests/logging/logger.test.ts
+new file mode 100644
+index 0000000..03466f7
+--- /dev/null
++++ b/tests/logging/logger.test.ts
+@@ -0,0 +1,117 @@
++import { describe, it, expect, beforeEach, afterEach } from 'vitest';
++import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { PassThrough } from 'node:stream';
++import pino from 'pino';
++import { createLogger, childLogger, REDACT_PATHS } from '../../src/logging/logger.js';
++
++let tmp: string;
++
++beforeEach(() => {
++  tmp = mkdtempSync(join(tmpdir(), 'ccmux-logger-'));
++});
++
++afterEach(() => {
++  rmSync(tmp, { recursive: true, force: true });
++});
++
++function captureLogger(env: NodeJS.ProcessEnv = {}): {
++  log: pino.Logger;
++  read: () => string;
++} {
++  const chunks: string[] = [];
++  const stream = new PassThrough();
++  stream.on('data', (c: Buffer) => chunks.push(c.toString('utf8')));
++  const log = pino(
++    {
++      level: env.CCMUX_LOG_LEVEL ?? 'info',
++      redact: { paths: [...REDACT_PATHS], censor: '[Redacted]' },
++    },
++    stream,
++  );
++  return { log, read: () => chunks.join('') };
++}
++
++describe('createLogger — redaction', () => {
++  it('redacts req.headers.authorization', () => {
++    const { log, read } = captureLogger();
++    log.info({ req: { headers: { authorization: 'Bearer sk-ant-xxx' } } }, 'hi');
++    const out = read();
++    expect(out).not.toContain('sk-ant-xxx');
++    expect(out).toContain('[Redacted]');
++  });
++
++  it('redacts req.headers["x-api-key"]', () => {
++    const { log, read } = captureLogger();
++    log.info({ req: { headers: { 'x-api-key': 'secret-key' } } }, 'hi');
++    expect(read()).not.toContain('secret-key');
++  });
++
++  it('redacts req.headers["x-ccmux-token"]', () => {
++    const { log, read } = captureLogger();
++    log.info({ req: { headers: { 'x-ccmux-token': 'token-xyz' } } }, 'hi');
++    expect(read()).not.toContain('token-xyz');
++  });
++
++  it('passes non-sensitive fields through unchanged', () => {
++    const { log, read } = captureLogger();
++    log.info({ req: { method: 'POST', url: '/v1/messages' } }, 'hello');
++    const parsed = JSON.parse(read().trim().split('\n')[0] ?? '{}') as {
++      msg?: string;
++      req?: { method?: string; url?: string };
++    };
++    expect(parsed.msg).toBe('hello');
++    expect(parsed.req?.method).toBe('POST');
++    expect(parsed.req?.url).toBe('/v1/messages');
++  });
++});
++
++describe('createLogger — destination', () => {
++  it('writes to a file when destination="file"', async () => {
++    const log = createLogger({ destination: 'file', logDir: tmp });
++    log.info('file-write-test');
++    const file = join(tmp, 'ccmux.log');
++    await new Promise<void>((r) => log.flush(() => r()));
++    for (let i = 0; i < 40; i++) {
++      if (existsSync(file) && readFileSync(file, 'utf8').includes('file-write-test')) {
++        break;
++      }
++      await new Promise((r) => setTimeout(r, 25));
++    }
++    expect(existsSync(file)).toBe(true);
++    expect(readFileSync(file, 'utf8')).toContain('file-write-test');
++  });
++
++  it('throws when destination="file" and logDir is missing', () => {
++    expect(() => createLogger({ destination: 'file' })).toThrow(/logDir is required/);
++  });
++});
++
++describe('createLogger — level resolution', () => {
++  it('respects CCMUX_LOG_LEVEL from env', () => {
++    const log = createLogger({ destination: 'stderr', env: { CCMUX_LOG_LEVEL: 'debug' } });
++    expect(log.level).toBe('debug');
++  });
++
++  it('upgrades to debug when CCMUX_DEBUG=1', () => {
++    const log = createLogger({ destination: 'stderr', env: { CCMUX_DEBUG: '1' } });
++    expect(log.level).toBe('debug');
++  });
++
++  it('defaults to info when no env hint is given', () => {
++    const log = createLogger({ destination: 'stderr', env: {} });
++    expect(log.level).toBe('info');
++  });
++});
++
++describe('childLogger', () => {
++  it('binds the given fields to every subsequent record', () => {
++    const { log, read } = captureLogger();
++    const child = childLogger(log, { request_hash: 'abc123' });
++    child.info('bound');
++    const parsed = JSON.parse(read().trim()) as { request_hash?: string; msg?: string };
++    expect(parsed.request_hash).toBe('abc123');
++    expect(parsed.msg).toBe('bound');
++  });
++});
+diff --git a/tests/logging/paths.test.ts b/tests/logging/paths.test.ts
+new file mode 100644
+index 0000000..3cf337e
+--- /dev/null
++++ b/tests/logging/paths.test.ts
+@@ -0,0 +1,83 @@
++import { describe, it, expect, beforeEach, afterEach } from 'vitest';
++import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
++import { tmpdir, homedir } from 'node:os';
++import { join, sep } from 'node:path';
++import { resolvePaths, ensureDirs } from '../../src/config/paths.js';
++
++let tmp: string;
++
++beforeEach(() => {
++  tmp = mkdtempSync(join(tmpdir(), 'ccmux-paths-'));
++});
++
++afterEach(() => {
++  rmSync(tmp, { recursive: true, force: true });
++});
++
++describe('resolvePaths', () => {
++  it('honors CCMUX_HOME over everything else', () => {
++    const p = resolvePaths(
++      { CCMUX_HOME: tmp, XDG_CONFIG_HOME: '/should/not/win', APPDATA: 'C:\\nope' },
++      'linux',
++    );
++    expect(p.configDir).toBe(tmp);
++  });
++
++  it('honors XDG_CONFIG_HOME when CCMUX_HOME is unset', () => {
++    const p = resolvePaths({ XDG_CONFIG_HOME: tmp }, 'linux');
++    expect(p.configDir).toBe(join(tmp, 'ccmux'));
++  });
++
++  it('falls back to ~/.config/ccmux on Linux/macOS with no env hints', () => {
++    const p = resolvePaths({}, 'linux');
++    expect(p.configDir).toBe(join(homedir(), '.config', 'ccmux'));
++  });
++
++  it('uses %APPDATA%\\ccmux on Windows when APPDATA is set', () => {
++    const p = resolvePaths({ APPDATA: 'C:\\Users\\u\\AppData\\Roaming' }, 'win32');
++    expect(p.configDir).toBe(join('C:\\Users\\u\\AppData\\Roaming', 'ccmux'));
++  });
++
++  it('falls back to ~/.config/ccmux on Windows when APPDATA is missing', () => {
++    const p = resolvePaths({}, 'win32');
++    expect(p.configDir).toBe(join(homedir(), '.config', 'ccmux'));
++  });
++
++  it('derives configFile, logDir, decisionLogDir, stateDir, pidFile from configDir', () => {
++    const p = resolvePaths({ CCMUX_HOME: tmp }, 'linux');
++    expect(p.configFile).toBe(join(tmp, 'config.yaml'));
++    expect(p.logDir).toBe(join(tmp, 'logs'));
++    expect(p.decisionLogDir).toBe(join(tmp, 'logs', 'decisions'));
++    expect(p.stateDir).toBe(join(tmp, 'state'));
++    expect(p.pidFile).toBe(join(tmp, 'state', 'ccmux.pid'));
++  });
++
++  it('uses the platform-native path separator', () => {
++    const p = resolvePaths({ CCMUX_HOME: tmp }, process.platform);
++    expect(p.configFile.includes(sep)).toBe(true);
++  });
++});
++
++describe('ensureDirs', () => {
++  it('creates configDir, logDir, decisionLogDir, stateDir when none exist', () => {
++    const p = resolvePaths({ CCMUX_HOME: join(tmp, 'fresh') }, 'linux');
++    ensureDirs(p);
++    expect(statSync(p.configDir).isDirectory()).toBe(true);
++    expect(statSync(p.logDir).isDirectory()).toBe(true);
++    expect(statSync(p.decisionLogDir).isDirectory()).toBe(true);
++    expect(statSync(p.stateDir).isDirectory()).toBe(true);
++  });
++
++  it('is idempotent — calling twice does not throw', () => {
++    const p = resolvePaths({ CCMUX_HOME: tmp }, 'linux');
++    ensureDirs(p);
++    expect(() => ensureDirs(p)).not.toThrow();
++  });
++
++  it('propagates non-EEXIST errors when a path component is a file, not a dir', () => {
++    const parent = join(tmp, 'parent-is-file');
++    writeFileSync(parent, 'not a dir');
++    const p = resolvePaths({ CCMUX_HOME: join(parent, 'ccmux') }, 'linux');
++    expect(() => ensureDirs(p)).toThrow();
++  });
++});
+diff --git a/tests/logging/redact.test.ts b/tests/logging/redact.test.ts
+new file mode 100644
+index 0000000..dfb1f45
+--- /dev/null
++++ b/tests/logging/redact.test.ts
+@@ -0,0 +1,57 @@
++import { describe, it, expect } from 'vitest';
++import { sanitizeHeaders, SANITIZABLE_HEADER_NAMES } from '../../src/privacy/redact.js';
++
++describe('sanitizeHeaders', () => {
++  it('redacts authorization, x-api-key, and leaves others untouched', () => {
++    const out = sanitizeHeaders({
++      authorization: 'Bearer sk-ant-xxx',
++      'x-api-key': 'k',
++      foo: 'bar',
++    });
++    expect(out).toEqual({
++      authorization: '[REDACTED]',
++      'x-api-key': '[REDACTED]',
++      foo: 'bar',
++    });
++  });
++
++  it('matches header names case-insensitively and preserves original case', () => {
++    const out = sanitizeHeaders({
++      Authorization: 'Bearer x',
++      AUTHORIZATION: 'Bearer y',
++      authorization: 'Bearer z',
++    });
++    expect(out.Authorization).toBe('[REDACTED]');
++    expect(out.AUTHORIZATION).toBe('[REDACTED]');
++    expect(out.authorization).toBe('[REDACTED]');
++    expect(Object.keys(out)).toEqual(['Authorization', 'AUTHORIZATION', 'authorization']);
++  });
++
++  it('replaces duplicate (array) values with a single-element [REDACTED] array', () => {
++    const out = sanitizeHeaders({
++      'x-ccmux-token': ['t1', 't2'],
++      via: ['a', 'b'],
++    });
++    expect(out['x-ccmux-token']).toEqual(['[REDACTED]']);
++    expect(out.via).toEqual(['a', 'b']);
++  });
++
++  it('leaves undefined values as undefined', () => {
++    const out = sanitizeHeaders({ authorization: undefined, foo: 'bar' });
++    expect(out.authorization).toBeUndefined();
++    expect(out.foo).toBe('bar');
++  });
++
++  it('does not mutate input', () => {
++    const input = { authorization: 'Bearer x', foo: 'bar' };
++    const snapshot = { ...input };
++    sanitizeHeaders(input);
++    expect(input).toEqual(snapshot);
++  });
++
++  it('SANITIZABLE_HEADER_NAMES is exactly the documented lowercased set', () => {
++    expect([...SANITIZABLE_HEADER_NAMES].sort()).toEqual(
++      ['authorization', 'x-api-key', 'x-ccmux-token'].sort(),
++    );
++  });
++});

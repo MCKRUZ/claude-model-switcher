@@ -164,3 +164,18 @@ Tests live in `tests/logging/`. Use vitest, no mocks for `fs` — use temp dirs 
 - Config schema + loader (`src/config/load.ts`, `schema.ts`, `defaults.ts`) → **section-03**.
 - Config file watcher → **section-06**.
 - PID file write/read semantics → **section-05** (this section only computes the path).
+
+---
+
+## Actual Implementation Notes (post-build)
+
+Deviations and hardenings made during implementation:
+
+1. **Censor string unified on `[REDACTED]`.** Spec left the pino censor token implicit (pino defaults to `[Redacted]`), while the standalone sanitizer in `src/privacy/redact.ts` emits `[REDACTED]`. Unified on the uppercase form for grep parity.
+2. **Added a `serializers.req` to the pino factory.** The literal-path `redact` list only catches lowercase exact matches. The serializer runs `sanitizeHeaders()` over the whole `req.headers` object, which is case-insensitive and therefore defends against whole-object logging like `log.info({ req: rawRequest }, '...')` when a caller constructs headers with unusual casing. Defense-in-depth layered on top of the spec's redact paths.
+3. **`nonBlank(env)` helper in `paths.ts`.** Treats whitespace-only env values (`CCMUX_HOME='   '`) as unset, matching what users likely expect.
+4. **Windows mode note.** `mkdirSync({ mode: 0o700 })` is documented as POSIX-only (Windows ignores the bits) with an inline comment.
+5. **Test helper duplication.** `tests/logging/logger.test.ts` has its own `captureLogger()` that mirrors the factory's pino config with an in-memory `PassThrough` stream. Intentional — it keeps `createLogger` free of a test-only `stream` parameter.
+6. **Verification:** `npm run lint`, `npm run typecheck` (both tsconfigs), `npm test` — 28/28 passing (6 redact + 10 paths + 10 logger + 2 size-limits).
+
+Code review artifacts: `planning/implementation/code_review/section-02-*.md`.
