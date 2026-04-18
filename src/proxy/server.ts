@@ -2,6 +2,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
 import type { CcmuxConfig } from '../config/schema.js';
+import type { ConfigStore } from '../config/watcher.js';
 import { makeHotPathHandler } from './hot-path.js';
 import { passThrough } from './pass-through.js';
 import { makeHealthHandler } from './health.js';
@@ -12,6 +13,7 @@ export interface ProxyServerOptions {
   readonly port: number;
   readonly logger: Logger;
   readonly config: CcmuxConfig;
+  readonly configStore?: ConfigStore;
   readonly requireProxyToken?: boolean;
   readonly proxyToken?: string;
   readonly bodyLimit?: number;

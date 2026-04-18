@@ -89,3 +89,28 @@ Use `vi.useFakeTimers()` for the debounce tests. Use a real temp directory (`nod
 - Reloading anything that requires rebinding the port (port override changes do not take effect until restart — log a warning if `ports.*` changes on reload).
 - Signaling the wrapper or dashboard processes about config changes — they have their own configs / no config.
 - Persisting reload history to the decision log (section-13 concern, not this one).
+
+---
+
+## Implementation Record (post-review)
+
+### Files Created / Modified
+- **`src/config/watcher.ts`** (new, ~100 lines) — `startConfigWatcher(path, initial, logger, opts)` returning `{ store, handle }`. Handle exposes `stop()` and `whenReady`.
+- **`tests/config/watcher.test.ts`** (new) — 6 tests: valid-edit swap, invalid-YAML retention + warn log, debounce coalescing, atomic swap of captured reference, teardown, missing-file-at-start.
+- **`src/proxy/server.ts`** — added optional `configStore?: ConfigStore` to `ProxyServerOptions` (placeholder for future handlers that will read per-request config via `store.getCurrent()`).
+- **`src/cli/start.ts`** — starts the watcher after initial `loadConfig`, passes the store into `createProxyServer`, and tears the watcher down in `close()`.
+- **`src/config/watch.ts`** — deleted (stub from earlier section).
+
+### Deviations from spec
+- **`awaitWriteFinish` tuned to `{ stabilityThreshold: 50, pollInterval: 25 }`** (spec suggested 100/50). Lower values reduce test wall time; still covers editor write-then-rename.
+- **`usePolling: true, interval: 50`** — required on Windows and inside vitest worker processes where chokidar's native watcher drops events unreliably. No functional difference to consumers.
+- **`WatcherHandle.whenReady: Promise<void>`** added to the public API (spec didn't specify). Required because chokidar drops events arriving before its initial scan completes; tests and production callers must await this before expecting reloads.
+- **Handler config-store wiring is a placeholder.** Current proxy handlers (`hot-path`, `pass-through`, `health`) don't yet read config per-request, so §5 ("handlers must call `getCurrent()` exactly once") is forward-looking. Will be enforced when policy/routing lands (section-08+).
+
+### Code review fixes applied
+1. **`whenReady` early-stop leak** — `stop()` now resolves the promise so awaiters unblock even if chokidar never fired `ready`.
+2. **Concurrent `runReload` race** — added single-flight guard (`reloadInFlight` + `reloadPending`) so out-of-order `loadConfig` completions cannot swap `current` backwards. Added post-`await` `stopped` check to prevent assignment during shutdown.
+
+### Test counts
+- Watcher file: 6/6 passing (~11s with polling on Windows).
+- Full suite: 126/127 passing, 1 skipped (POSIX-only perm-mode test). No regressions.

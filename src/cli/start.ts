@@ -9,6 +9,7 @@ import { dirname } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { loadConfig } from '../config/loader.js';
 import { resolvePaths, type CcmuxPaths } from '../config/paths.js';
+import { startConfigWatcher, type WatcherHandle } from '../config/watcher.js';
 import { createLogger } from '../logging/logger.js';
 import { createProxyServer } from '../proxy/server.js';
 import { listenWithFallback } from '../lifecycle/ports.js';
@@ -30,23 +31,34 @@ export interface StartedServer {
 export async function startProxy(opts: StartOpts): Promise<StartedServer> {
   const paths = opts.paths ?? resolvePaths();
   const out = opts.stdout ?? process.stdout;
-  const loaded = await loadConfig(opts.configPath);
+  const configPath = opts.configPath ?? paths.configFile;
+  const loaded = await loadConfig(configPath);
   if (!loaded.ok) {
     const msgs = loaded.error.map((e) => `${e.path}: ${e.message}`).join('; ');
     throw new Error(`ccmux: invalid config: ${msgs}`);
   }
   const { config } = loaded.value;
   const logger = createLogger({ destination: 'stderr' });
-  const app = await createProxyServer({ port: config.port, logger, config });
+  const { store, handle: watcher } = startConfigWatcher(configPath, config, logger);
+  const app = await createProxyServer({ port: config.port, logger, config, configStore: store });
   const port = await listenWithFallback(app, '127.0.0.1', config.port, 20);
   out.write(`ccmux listening on http://127.0.0.1:${port}\n`);
 
   const pidFile = opts.foreground ? null : writePidFile(paths.pidFile, process.pid, port);
   const baseClose = async (): Promise<void> => {
+    await closeWatcher(watcher);
     await app.close();
     if (pidFile !== null) safeUnlink(pidFile);
   };
   return { app, port, pidFile, close: baseClose };
+}
+
+async function closeWatcher(watcher: WatcherHandle): Promise<void> {
+  try {
+    await watcher.stop();
+  } catch {
+    // Shutdown path — best-effort.
+  }
 }
 
 export async function runStart(opts: StartOpts): Promise<number> {
