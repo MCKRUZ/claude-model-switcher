@@ -1,13 +1,14 @@
 // commander router. Subcommands lazy-import so `ccmux version` stays fast.
 
 import { Command, CommanderError } from 'commander';
+import { splitOnDoubleDash } from './run.js';
 
 export interface RunOptions {
   readonly stdout?: NodeJS.WritableStream;
   readonly stderr?: NodeJS.WritableStream;
 }
 
-interface ActionBox { code: number; }
+interface ActionBox { code: number; childArgv: readonly string[]; }
 
 export async function run(
   argv: readonly string[],
@@ -15,10 +16,11 @@ export async function run(
 ): Promise<number> {
   const stdout = opts.stdout ?? process.stdout;
   const stderr = opts.stderr ?? process.stderr;
-  const box: ActionBox = { code: 0 };
+  const split = splitOnDoubleDash(argv);
+  const box: ActionBox = { code: 0, childArgv: split.after };
   const program = buildProgram(box, stdout, stderr);
   try {
-    await program.parseAsync([...argv], { from: 'user' });
+    await program.parseAsync([...split.before], { from: 'user' });
     return box.code;
   } catch (err: unknown) {
     return handleCommanderError(err, stderr);
@@ -43,6 +45,19 @@ function buildProgram(
     .action(async (cmdOpts: { foreground?: boolean }) => {
       const { runStart } = await import('./start.js');
       box.code = await runStart({ foreground: cmdOpts.foreground === true, stdout });
+    });
+  program
+    .command('run')
+    .description('Start the proxy and run a child command against it (ccmux run -- <cmd...>)')
+    .allowUnknownOption(true)
+    .action(async () => {
+      const { runRun } = await import('./run.js');
+      const [childCmd, ...childArgs] = box.childArgv;
+      box.code = await runRun({
+        childCmd: childCmd ?? '',
+        childArgs,
+        stderr,
+      });
     });
   program
     .command('status')

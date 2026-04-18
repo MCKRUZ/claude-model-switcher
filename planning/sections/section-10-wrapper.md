@@ -149,3 +149,25 @@ Commander subcommand. Because commander consumes `--` specially, the cleanest pa
 - `ccmux start [--foreground]` — that's section-05. The wrapper shares helpers with it (`lifecycle/ports.ts`, `lifecycle/signals.ts`) but does not reimplement them.
 - Installing `claude` itself. The wrapper assumes the user has a working `claude` binary on PATH.
 - Windows-specific signal translation beyond best-effort `child.kill()`. Document the caveat in `docs/troubleshooting.md` (section-22), not here.
+
+## Implementation Notes (as-built)
+
+Landed files exactly as planned:
+- `src/lifecycle/wrapper.ts` — orchestrator with exported `runWrapper`, `buildChildEnv`, and `exitCodeFor` (exported to make the platform-specific mapping unit-testable).
+- `src/lifecycle/token.ts` — 128-bit hex token generator.
+- `src/cli/run.ts` — `runRun` handler + `splitOnDoubleDash` helper.
+- `src/cli/main.ts` — registers `run` subcommand; argv is pre-split on `--` before commander parses so flags after `--` reach the child.
+- `tests/fixtures/bin/echo-env.mjs` — fixture that snapshots env to JSON and optionally loops on signal.
+- `tests/lifecycle/wrapper.test.ts` — 16 tests covering child env, signal forwarding (POSIX-only), exit-code propagation, ENOENT, port fallback, healthz gate, token non-leakage, default `process` signal source, and `exitCodeFor` unit cases.
+- `tests/cli/run.test.ts` — 6 tests covering `splitOnDoubleDash` semantics, `runRun` missing-command case, and a `main.ts` integration test proving post-`--` argv reaches the child.
+
+### Deviations from plan
+
+1. **Proxy token gating.** The section's "Wrapper flow" step 4 reads "Pass [the token] to the proxy process via `proxy.setToken(token)` or config injection so the proxy's token-gate middleware accepts the matching header." In practice, Claude Code has no outbound-header knob, so enforcing `requireProxyToken` on the proxy would fail every request. The token is generated and injected into the child env (defense-in-depth, plan §6.8), but the wrapper's proxy instance does **not** set `requireProxyToken`. The 127.0.0.1-only bind is the real containment boundary. Inline comment in `startWrapperProxy` explains this.
+2. **`healthz` poll.** Fastify's `listen()` only resolves once the socket is accepting, so `/healthz` is already live by the time we poll. The poll is kept as a clear-error backstop for async-init edge cases; see comment above `waitForHealthz`.
+3. **`exitCodeFor` exported.** Exported from `wrapper.ts` so tests can exercise the POSIX signal→code mapping without spawning a real child.
+
+### Test count / coverage
+
+- Added tests: 22 (16 wrapper + 6 CLI); 2 POSIX-only signal tests + 1 POSIX-only `exitCodeFor` test skip on Windows.
+- Full suite: 270 passing, 4 skipped (all platform-gated).
