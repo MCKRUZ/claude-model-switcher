@@ -1,0 +1,24 @@
+{
+  "signals": {
+    "planMode": false,
+    "messageCount": 1,
+    "tools": ["read"],
+    "toolUseCount": 0,
+    "estInputTokens": 100,
+    "fileRefCount": 0,
+    "retryCount": 0,
+    "frustration": false,
+    "explicitModel": null,
+    "projectPath": null,
+    "sessionDurationMs": 5000,
+    "betaFlags": [],
+    "sessionId": "test-session",
+    "requestHash": "def456"
+  },
+  "body": {
+    "messages": [
+      { "role": "user", "content": "what does this mean?" }
+    ]
+  },
+  "requestHash": "def456"
+}

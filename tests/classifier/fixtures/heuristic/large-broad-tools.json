@@ -1,0 +1,27 @@
+{
+  "signals": {
+    "planMode": false,
+    "messageCount": 3,
+    "tools": ["read", "write", "bash", "grep", "glob", "edit"],
+    "toolUseCount": 4,
+    "estInputTokens": 10000,
+    "fileRefCount": 5,
+    "retryCount": 0,
+    "frustration": false,
+    "explicitModel": null,
+    "projectPath": null,
+    "sessionDurationMs": 120000,
+    "betaFlags": [],
+    "sessionId": "test-session",
+    "requestHash": "abc123"
+  },
+  "body": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "implement a full refactor of ./src/foo.ts and ./bar.ts and ./baz/qux.ts and ./lib/extra.ts and ./core/main.ts\n```ts\ncode\n```\n```ts\nmore\n```\n```\nthree\n```\n```\nfour\n```\n```\nfive\n```\n```\nsix\n```\n```\nseven\n```"
+      }
+    ]
+  },
+  "requestHash": "abc123"
+}

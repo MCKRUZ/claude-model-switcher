@@ -157,3 +157,26 @@ Fixture files contain a serialized `ClassifierInput` (`signals`, `body`, `reques
 - The `requestHash` field is not consumed by the heuristic but MUST be passed through the `ClassifierInput` so section-12's cache can key by it without a second interface.
 - No logging above `debug` from inside `classify()`. The orchestrator logs the final routing decision; the heuristic is silent on the hot path.
 - Keep `heuristic.ts` under 150 lines. Split the feature-weight table into a const at the top of the file for easy tuning.
+
+## Implementation status (as built)
+
+**Files created / modified:**
+- `src/classifier/types.ts` — populated with `Classifier`, `ClassifierInput`, `ClassifierResult`, `Tier`.
+- `src/classifier/heuristic.ts` — 149 lines.
+- `tests/classifier/heuristic.test.ts` — 19 test cases (13 from spec + 6 from code review).
+- `tests/classifier/fixtures/heuristic/{large-broad-tools,small-single-tool,imperative,question}.json`.
+
+**Deviations from plan (code-review driven):**
+- `validateSignals` rejects negative `estInputTokens` / `fileRefCount` in addition to
+  NaN/Infinity. Spec implied numeric validity; negatives would under-score.
+- `countCodeFences` caps per-message scan at 64 KB and early-exits once
+  `MAX_USEFUL_TRIPLES` (derived from `codeBlockCap / codeBlockFactor`) is reached —
+  bounds allocation on adversarial payloads, preserving the zero-latency contract.
+- Added 6 tests: NaN/Infinity tokens, negative fileRefCount, empty/missing messages,
+  band boundaries (3.0 → sonnet, 6.5 → opus), aborted deadline ignored, tier
+  assertions for imperative/question.
+- Latency test asserts `< 5ms` (not spec's `< 1ms`) to accommodate CI jitter; the
+  result's own `latencyMs` field is independently asserted `< 5ms`.
+
+**Code review:** see
+`planning/implementation/code_review/section-11-{review,interview}.md`.

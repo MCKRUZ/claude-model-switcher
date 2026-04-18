@@ -1,0 +1,27 @@
+{
+  "signals": {
+    "planMode": false,
+    "messageCount": 1,
+    "tools": ["read"],
+    "toolUseCount": 0,
+    "estInputTokens": 1500,
+    "fileRefCount": 1,
+    "retryCount": 0,
+    "frustration": false,
+    "explicitModel": null,
+    "projectPath": null,
+    "sessionDurationMs": 10000,
+    "betaFlags": [],
+    "sessionId": "test-session",
+    "requestHash": "ghi789-imp"
+  },
+  "body": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "implement the auth logic in ./src/auth.ts\n```ts\nstub\n```"
+      }
+    ]
+  },
+  "requestHash": "ghi789-imp"
+}
