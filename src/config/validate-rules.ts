@@ -30,22 +30,44 @@ function readRuleThen(
   v: Obj,
   path: string,
   sink: ErrorSink,
-): { choice: string; rest: Obj } {
+): { then: Obj; valid: boolean } {
   const raw = v['then'];
   if (raw === undefined) {
     sink.err(`${path}/then`, 'required object');
-    return { choice: '', rest: {} };
+    return { then: {}, valid: false };
   }
   if (!isObj(raw)) {
     sink.err(`${path}/then`, 'must be an object');
-    return { choice: '', rest: {} };
+    return { then: {}, valid: false };
   }
-  const choice = raw['choice'];
-  if (typeof choice !== 'string' || choice.length === 0) {
-    sink.err(`${path}/then/choice`, 'required non-empty string');
-    return { choice: '', rest: raw };
+  if ('choice' in raw) {
+    const choice = raw['choice'];
+    const okChoice =
+      (typeof choice === 'string' && choice.length > 0) ||
+      (isObj(choice) && typeof choice['modelId'] === 'string');
+    if (!okChoice) {
+      sink.err(`${path}/then/choice`, 'must be a tier string or { modelId }');
+      return { then: raw, valid: false };
+    }
+    return { then: raw, valid: true };
   }
-  return { choice, rest: raw };
+  if ('escalate' in raw) {
+    const n = raw['escalate'];
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 1) {
+      sink.err(`${path}/then/escalate`, 'must be a positive integer');
+      return { then: raw, valid: false };
+    }
+    return { then: raw, valid: true };
+  }
+  if ('abstain' in raw) {
+    if (raw['abstain'] !== true) {
+      sink.err(`${path}/then/abstain`, 'must be literal true');
+      return { then: raw, valid: false };
+    }
+    return { then: raw, valid: true };
+  }
+  sink.err(`${path}/then/choice`, 'required non-empty string');
+  return { then: raw, valid: false };
 }
 
 function readRuleWhen(v: Obj, path: string, sink: ErrorSink): Obj {
@@ -82,8 +104,9 @@ export function validateRule(
   warnUnknownKeys(v, ['id', 'when', 'then', 'allowDowngrade'], path, sink);
   const id = readRuleId(v, path, sink);
   const when = readRuleWhen(v, path, sink);
-  const { choice, rest } = readRuleThen(v, path, sink);
-  const base: CcmuxRule = { id, when, then: { ...rest, choice } };
+  const { then, valid } = readRuleThen(v, path, sink);
+  if (!valid || id.length === 0) return null;
+  const base: CcmuxRule = { id, when, then };
   if (typeof v['allowDowngrade'] === 'boolean') {
     return { ...base, allowDowngrade: v['allowDowngrade'] };
   }
@@ -105,9 +128,6 @@ export function validateRules(
   v.forEach((item, i) => {
     const rule = validateRule(item, `${path}/${i}`, sink);
     if (!rule) return;
-    if (rule.id.length === 0 || rule.then.choice.length === 0) {
-      return;
-    }
     if (seen.has(rule.id)) {
       sink.err(`${path}/${i}/id`, `duplicate rule id "${rule.id}"`);
       return;

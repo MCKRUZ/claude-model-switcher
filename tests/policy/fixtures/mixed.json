@@ -1,0 +1,22 @@
+[
+  { "name": "plan-tiny",         "planMode": true,  "messageCount": 1,  "toolUseCount": 0, "estInputTokens": 200,   "frustration": false, "retryCount": 0 },
+  { "name": "plan-medium",       "planMode": true,  "messageCount": 4,  "toolUseCount": 2, "estInputTokens": 3000,  "frustration": false, "retryCount": 0 },
+  { "name": "plan-long",         "planMode": true,  "messageCount": 12, "toolUseCount": 3, "estInputTokens": 8000,  "frustration": false, "retryCount": 1 },
+  { "name": "tiny-1",            "planMode": false, "messageCount": 1,  "toolUseCount": 0, "estInputTokens": 300,   "frustration": false, "retryCount": 0 },
+  { "name": "tiny-2",            "planMode": false, "messageCount": 2,  "toolUseCount": 0, "estInputTokens": 450,   "frustration": false, "retryCount": 0 },
+  { "name": "small-no-tools",    "planMode": false, "messageCount": 3,  "toolUseCount": 0, "estInputTokens": 1500,  "frustration": false, "retryCount": 0 },
+  { "name": "small-no-tools-2",  "planMode": false, "messageCount": 4,  "toolUseCount": 0, "estInputTokens": 1800,  "frustration": false, "retryCount": 0 },
+  { "name": "tool-heavy-1",      "planMode": false, "messageCount": 6,  "toolUseCount": 8, "estInputTokens": 4000,  "frustration": false, "retryCount": 0 },
+  { "name": "tool-heavy-2",      "planMode": false, "messageCount": 10, "toolUseCount": 15,"estInputTokens": 12000, "frustration": false, "retryCount": 0 },
+  { "name": "frustrated-1",      "planMode": false, "messageCount": 7,  "toolUseCount": 2, "estInputTokens": 5000,  "frustration": true,  "retryCount": 0 },
+  { "name": "frustrated-2",      "planMode": false, "messageCount": 3,  "toolUseCount": 0, "estInputTokens": 900,   "frustration": true,  "retryCount": 0 },
+  { "name": "long-context-1",    "planMode": false, "messageCount": 15, "toolUseCount": 4, "estInputTokens": 20000, "frustration": false, "retryCount": 0 },
+  { "name": "long-context-2",    "planMode": false, "messageCount": 25, "toolUseCount": 6, "estInputTokens": 50000, "frustration": false, "retryCount": 0 },
+  { "name": "retry-1",           "planMode": false, "messageCount": 5,  "toolUseCount": 1, "estInputTokens": 2500,  "frustration": false, "retryCount": 2 },
+  { "name": "retry-2",           "planMode": false, "messageCount": 8,  "toolUseCount": 3, "estInputTokens": 4500,  "frustration": false, "retryCount": 3 },
+  { "name": "mid-1",             "planMode": false, "messageCount": 5,  "toolUseCount": 2, "estInputTokens": 3500,  "frustration": false, "retryCount": 0 },
+  { "name": "mid-2",             "planMode": false, "messageCount": 7,  "toolUseCount": 4, "estInputTokens": 4500,  "frustration": false, "retryCount": 1 },
+  { "name": "mid-3",             "planMode": false, "messageCount": 9,  "toolUseCount": 5, "estInputTokens": 6000,  "frustration": false, "retryCount": 0 },
+  { "name": "tiny-3",            "planMode": false, "messageCount": 1,  "toolUseCount": 0, "estInputTokens": 100,   "frustration": false, "retryCount": 0 },
+  { "name": "tiny-with-tool",    "planMode": false, "messageCount": 2,  "toolUseCount": 1, "estInputTokens": 600,   "frustration": false, "retryCount": 0 }
+]

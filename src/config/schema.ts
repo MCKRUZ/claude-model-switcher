@@ -15,7 +15,7 @@ export type Tier = 'haiku' | 'sonnet' | 'opus';
 export interface CcmuxRule {
   readonly id: string;
   readonly when: Readonly<Record<string, unknown>>;
-  readonly then: { readonly choice: string; readonly [key: string]: unknown };
+  readonly then: Readonly<Record<string, unknown>>;
   readonly allowDowngrade?: boolean;
 }
 

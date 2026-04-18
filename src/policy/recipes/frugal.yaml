@@ -1,0 +1,21 @@
+# Recipe: frugal — aggressive Haiku, Opus only for plan mode.
+port: 7879
+mode: live
+rules:
+  # Plan mode deserves the best reasoning.
+  - id: plan-to-opus
+    when: { planMode: true }
+    then: { choice: opus }
+
+  # Short, tool-free chats are cheap by default.
+  - id: tiny-to-haiku
+    when:
+      all:
+        - { messageCount: { lt: 6 } }
+        - { toolUseCount: { eq: 0 } }
+    then: { choice: haiku }
+
+  # Frustrated users get one tier bump.
+  - id: frustration-escalate
+    when: { frustration: true }
+    then: { escalate: 1 }

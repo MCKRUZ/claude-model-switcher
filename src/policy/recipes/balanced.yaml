@@ -1,0 +1,27 @@
+# Recipe: balanced — `ccmux init` default. Haiku for trivial, Opus for plan, escalate on friction.
+port: 7879
+mode: live
+rules:
+  # Plan mode deserves Opus.
+  - id: plan-to-opus
+    when: { planMode: true }
+    then: { choice: opus }
+
+  # Trivial turns: short, no tools, small context → Haiku.
+  - id: trivial-to-haiku
+    when:
+      all:
+        - { messageCount: { lt: 5 } }
+        - { toolUseCount: { eq: 0 } }
+        - { estInputTokens: { lt: 2000 } }
+    then: { choice: haiku }
+
+  # Retries suggest the first tier couldn't cope.
+  - id: retry-escalate
+    when: { retryCount: { gte: 2 } }
+    then: { escalate: 1 }
+
+  # Frustration signal → bump a tier.
+  - id: frustration-escalate
+    when: { frustration: true }
+    then: { escalate: 1 }

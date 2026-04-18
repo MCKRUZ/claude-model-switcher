@@ -1,0 +1,18 @@
+# Recipe: opus-forward — default Opus, Haiku only for trivial fast-path.
+port: 7879
+mode: live
+rules:
+  # Only tiny, tool-free openers get Haiku.
+  - id: trivial-to-haiku
+    when:
+      all:
+        - { messageCount: { lt: 2 } }
+        - { estInputTokens: { lt: 500 } }
+        - { toolUseCount: { eq: 0 } }
+    then: { choice: haiku }
+
+  # Everything else routes straight to Opus.
+  - id: default-opus
+    when:
+      all: []
+    then: { choice: opus }

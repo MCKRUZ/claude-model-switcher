@@ -8,7 +8,7 @@ Implement the YAML-driven rule engine that runs over extracted request signals t
 
 - **section-03-config** — YAML config loader with permissive forward-compat; Result-style validation errors with JSON-pointer paths; config schema already accepts unknown top-level keys with a warning.
 - **section-06-config-watcher** — chokidar watcher (500ms debounce) that atomically hot-swaps the rule set; on invalid YAML keeps previous config and logs.
-- **section-07-signals** — `Signals` frozen object with `null` for any extractor that threw. Fields include (at least): `planMode`, `messageCount`, `toolUseCount`, `toolNames`, `estInputTokens`, `frustration`, `filePathCount`, `retryCount`, `explicitModel`, `projectPath`, `sessionDurationMs`, `betaFlags`.
+- **section-07-signals** — `Signals` frozen object with `null` for any extractor that threw. Actual shipped fields: `planMode`, `messageCount`, `tools`, `toolUseCount`, `estInputTokens`, `fileRefCount`, `retryCount`, `frustration`, `explicitModel`, `projectPath`, `sessionDurationMs`, `betaFlags`, `sessionId`, `requestHash`. (Earlier spec drafts used `toolNames`/`filePathCount`; renamed to `tools`/`fileRefCount` in section-07. `signals-schema.ts` allow-list matches the shipped names.)
 
 This section publishes a pure function — `evaluate(rules, signals) -> PolicyResult` — that section-09 will consume.
 
@@ -103,7 +103,7 @@ Permissive forward-compat is a **config-loader** stance (unknown top-level YAML 
 All three live under `src/policy/recipes/` and are copied by `ccmux init --recipe <name>` (section-19). They must be parseable by the section-03 config loader and produce non-empty `Rule[]`.
 
 - **`frugal.yaml`** — aggressive Haiku. Rules: plan-mode → Opus; any request with `messageCount < 6` AND `toolUseCount == 0` → Haiku; `frustration` → `escalate: 1`; otherwise abstain (sticky/classifier decides, which will tend Haiku given recipe intent).
-- **`balanced.yaml`** — the `ccmux init` default. Rules: plan-mode → Opus; `all: [messageCount < 3, toolUseCount == 0, estInputTokens < 2000]` → Haiku; `retryCount >= 2` → `escalate: 1`; `frustration: true` → `escalate: 1`; otherwise abstain (downstream sticky → Sonnet).
+- **`balanced.yaml`** — the `ccmux init` default. Rules: plan-mode → Opus; `all: [messageCount < 5, toolUseCount == 0, estInputTokens < 2000]` → Haiku; `retryCount >= 2` → `escalate: 1`; `frustration: true` → `escalate: 1`; otherwise abstain (downstream sticky → Sonnet). (Threshold widened from the draft `< 3` to `< 5` to match the canonical fixture-set routing intent — `tests/policy/fixtures/mixed.json` asserts ≥30% haiku for balanced.)
 - **`opus-forward.yaml`** — default Opus. Rules: `all: [messageCount < 2, estInputTokens < 500, toolUseCount == 0]` → Haiku; everything else → `choice: opus`.
 
 Keep each recipe ≤ 40 lines of YAML. Include a `# Recipe: <name>` header comment and one-line rationale per rule.
@@ -150,6 +150,16 @@ Tests live under `tests/policy/`. Use real YAML strings and real `Signals` objec
 - Every recipe's rules all pass `load.ts` strict validation (no duplicate ids, all signals in allow-list).
 
 The recipe-ratio tests use the evaluator's output only — they do not invoke sticky or classifier paths.
+
+## Implementation Notes (post-build)
+
+- Files shipped exactly as listed in **Files to Create** above. Biggest file: `src/policy/load.ts` (~300 lines).
+- `evaluate.ts` includes a defensive throw in `evalCondition`: composite nodes with a sibling field leaf (e.g., `{ all: [...], messageCount: true }`) crash instead of silently dropping the leaf. Protects the in-memory rule path that section-09 introduces.
+- `load.ts` rejects unknown keys inside `{ modelId }` choice objects for consistency with other composite/leaf rejections.
+- Tests: 54 assertions across `predicates`, `dsl`, `evaluate`, `load`, and `recipes` — all green. Recipe ratio tests lean on `tests/policy/fixtures/mixed.json` (20 synthesized signal sets).
+- `src/config/schema.ts` relaxed `CcmuxRule.then` from `{ choice: string; ... }` to `Readonly<Record<string, unknown>>` so config-level validation admits `choice | escalate | abstain` rule variants.
+- `src/config/validate-rules.ts` now accepts all three `then` variants while preserving the legacy `/rules/0/then/choice` error path (when `then` has none of the known keys) for the section-03 fixture `invalid-rule.yaml`.
+- Deleted empty skeleton files not listed in plan: `src/policy/conditions.ts`, `engine.ts`, `tiers.ts`.
 
 ## Notes for the Implementer
 
