@@ -29,6 +29,7 @@
     "chokidar": "^3.6.0",
     "commander": "^12.1.0",
     "fastify": "^4.28.1",
+    "js-tiktoken": "^1.0.21",
     "js-yaml": "^4.1.0",
     "pino": "^9.3.2",
     "pino-pretty": "^11.2.1",

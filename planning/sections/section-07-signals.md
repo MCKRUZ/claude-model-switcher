@@ -209,3 +209,35 @@ From §7.2 (canonical hashing + sessionId):
 - No decision logging (section-13).
 - No wiring into the proxy hot path (section-04 already parses the body and will call `extractSignals` once the policy section lands).
 - `retryCount` only exposes the "how many times have we seen this hash" value — the session store that tracks hash counts lives in section-09. This section defines the `sessionContext.retrySeen` callback contract and tests against a fake.
+
+## Implementation Notes (as built)
+
+Delivered in one commit with 36 tests, all passing. Full test suite (162 tests / 27 files) green.
+
+### Files created/modified
+- `src/types/anthropic.ts` — populated with `ContentBlock`, `AnthropicContent`, `AnthropicMessage`, `AnthropicToolDefinition`, `AnthropicRequestBody` (all `readonly` with index signatures for forward-compat).
+- `src/signals/types.ts` — `Signals` interface + `SessionContext` (retrySeen callback contract).
+- `src/signals/messages.ts` — `flattenText`, `lastUserMessage`, `firstUserMessage`, `allUserMessages`, `contentBlocks` (shared utility).
+- `src/signals/plan-mode.ts` — detects literal "plan mode is active" (case-insensitive) in system content.
+- `src/signals/frustration.ts` — case-insensitive word-boundary match for `no | stop | why did you | that's wrong` on last user message.
+- `src/signals/tokens.ts` — lazy `cl100k_base` encoder; joins system + all message text.
+- `src/signals/tools.ts` — `extractToolNames`, `countToolUse`, `countFileRefs` (file-ref names: `read_file`, `write`, `edit`, `str_replace_editor`, `str_replace_based_edit_tool`).
+- `src/signals/canonical.ts` — `stableStringify` (recursive sorted-key JSON), `buildCanonicalInput`, `requestHash` → 32-char hex.
+- `src/signals/beta.ts` — `anthropic-beta` header split/trim/dedup/sort; array-valued headers handled.
+- `src/signals/retry.ts` — thin wrapper over `SessionContext.retrySeen`.
+- `src/signals/session.ts` — `deriveSessionId` with printable-ASCII user_id validation + HMAC-SHA256 fallback; process-local salt via `crypto.randomBytes(32)`. Exports `__resetLocalSaltForTests` (accepted as project pattern).
+- `src/signals/extract.ts` — orchestrator with per-extractor `safe()` wrapper. Project-path inference via longest common prefix of absolute paths in last 10 assistant tool_use blocks (POSIX + drive-letter heuristic).
+- `tests/signals/extract.test.ts` — 36 tests covering every §7.1 and §7.2 bullet + malformed-input resilience.
+- `package.json` — adds `js-tiktoken`.
+
+### Deviations from plan
+- Added `ContentBlock.name` as a typed optional field (used by `countFileRefs`); kept index signature for forward-compat.
+- `detectPlanMode` returns `false` (not `null`) when `system` is absent, since absence is a definitive signal. `null` is reserved for genuinely indeterminate shapes (non-array, non-string).
+- Broadened file-ref tool name set beyond plan's `read_file | write | edit` to include current Claude Code canonical names (`str_replace_editor`, `str_replace_based_edit_tool`).
+
+### Code-review-driven polish (see `planning/implementation/code_review/section-07-interview.md`)
+- `headers` parameter widened to `| undefined` on `extractSignals`.
+- `contentBlocks` parameter widened to `unknown` (removes three `as never` casts).
+- `stableStringify` defensive branch for `undefined`.
+- `EMPTY_FROZEN` module-level constant for reuse in fallbacks.
+- Inline comment documenting UNC exclusion in `isAbsolutePath`.
