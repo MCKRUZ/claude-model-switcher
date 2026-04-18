@@ -171,3 +171,12 @@ Stub out each of the following in `tests/sticky/`. Use `vitest`. Mock time by pa
 - `resolveStickyDecision` exported from `src/sticky/index.ts` (barrel file) alongside `createStickyStore`, `compareTiers`, `tierOf`.
 - `section-10-wrapper` and `section-13-decision-log` can import `StickyDecision` and the store factory without touching any internal file.
 - No use of `Date.now()`, no timers, no async, no external deps beyond the standard library.
+
+## Actual Implementation Notes (post-review)
+
+Deviations from the original plan, applied during code review:
+
+- **No silent fallback for missing modelTiers.** The original plan left implicit behavior when `config.modelTiers` lacks an entry for a tier used by a rule (tier-shorthand `{choice: "opus"}` or `{escalate: N}`). A fallback `claude-{tier}-latest` was added then removed: those strings are not valid Anthropic aliases and would cause upstream 404s. Current behavior: **throw with a clear error message** when a required tier has no modelId. Section-03 config validation is expected to warn on sparse `modelTiers`; this is the runtime safety net.
+- **`StickyStore` gains `peek(sessionId)` and `delete(sessionId)`** beyond the spec, both non-breaking. `peek` is how `resolveStickyDecision` distinguishes `ttl-expired` from `no-sticky` without mutating before deciding — it reads pre-eviction, then calls `get` to trigger eviction only if an entry was present.
+- **`turnCount` semantics documented inline.** Increments on every chosen outcome (policy / explicit / escalate / sticky-hit). Never increments on abstain. Consumers (section-13 decision log) should treat this as "count of chosen routings," not "count of incoming requests."
+- **Files produced:** `src/sticky/{types,tiers,store,policy,index}.ts` + `tests/sticky/{tiers,store,policy}.test.ts`. 35 tests total (tiers 9, store 9, policy 17), all passing. All file-size budgets respected (tiers ≈50, store ≈80, policy ≈130 lines).
