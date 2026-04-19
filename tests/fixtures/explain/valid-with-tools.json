@@ -1,0 +1,45 @@
+{
+  "model": "claude-sonnet-4-5-20250514",
+  "max_tokens": 4096,
+  "system": "You are a coding assistant.",
+  "tools": [
+    { "name": "Read", "description": "Read a file", "input_schema": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] } },
+    { "name": "Grep", "description": "Search files", "input_schema": { "type": "object", "properties": { "pattern": { "type": "string" } }, "required": ["pattern"] } }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": "Refactor the auth module to use dependency injection"
+    },
+    {
+      "role": "assistant",
+      "content": [
+        { "type": "text", "text": "I'll read the current auth module first." },
+        { "type": "tool_use", "id": "tu_1", "name": "Read", "input": { "path": "/home/user/proj/src/auth.ts" } }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        { "type": "tool_result", "tool_use_id": "tu_1", "content": "export class AuthService { ... }" }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        { "type": "text", "text": "Now let me search for usages." },
+        { "type": "tool_use", "id": "tu_2", "name": "Grep", "input": { "pattern": "AuthService" } }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        { "type": "tool_result", "tool_use_id": "tu_2", "content": "src/app.ts:5: new AuthService()" }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "Please continue with the refactoring"
+    }
+  ]
+}

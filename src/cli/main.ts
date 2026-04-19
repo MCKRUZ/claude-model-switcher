@@ -74,6 +74,7 @@ function buildProgram(
       box.code = runVersion(stdout);
     });
   registerInit(program, box, stdout, stderr);
+  registerExplain(program, box, stdout, stderr);
   registerReport(program, box, stdout, stderr);
   registerTune(program, box, stdout, stderr);
   return program;
@@ -95,6 +96,30 @@ function registerInit(
       box.code = runInit({
         recipe: cmdOpts.recipe,
         force: cmdOpts.force,
+        stdout,
+        stderr,
+      });
+    });
+}
+
+function registerExplain(
+  program: Command,
+  box: ActionBox,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream,
+): void {
+  program
+    .command('explain')
+    .description('Dry-run a request through the routing pipeline and print a diagnostic report')
+    .argument('<request>', 'Path to a JSON file containing an Anthropic Messages API request body')
+    .option('--config <path>', 'Override config file path')
+    .option('--classifier', 'Run heuristic classifier if policy abstains', false)
+    .action(async (requestPath: string, cmdOpts: { config?: string; classifier: boolean }) => {
+      const { runExplain } = await import('./explain.js');
+      box.code = await runExplain({
+        requestPath,
+        configPath: cmdOpts.config,
+        classifier: cmdOpts.classifier,
         stdout,
         stderr,
       });
