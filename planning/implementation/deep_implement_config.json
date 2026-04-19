@@ -38,6 +38,66 @@
     "section-02-logging-paths": {
       "status": "complete",
       "commit_hash": "7d2df7ae5118701b417f2466f475a0cf660dc027"
+    },
+    "section-03-config": {
+      "status": "complete",
+      "commit_hash": "e181b9707c0a7612535c3426353f8a01e04acb3c"
+    },
+    "section-04-proxy-phase0": {
+      "status": "complete",
+      "commit_hash": "b6f76a390005291b752b4f309844fff99fad5260"
+    },
+    "section-05-cli-start-and-ports": {
+      "status": "complete",
+      "commit_hash": "478a318"
+    },
+    "section-06-config-watcher": {
+      "status": "complete",
+      "commit_hash": "5691437fb1cd73b1c7fcad456d2acad7f93a595a"
+    },
+    "section-07-signals": {
+      "status": "complete",
+      "commit_hash": "09afe6f"
+    },
+    "section-08-policy": {
+      "status": "complete",
+      "commit_hash": "b6bc7a9"
+    },
+    "section-09-sticky-model": {
+      "status": "complete",
+      "commit_hash": "13e86075a2de92fc86646ba4de233708cfcf39f6"
+    },
+    "section-10-wrapper": {
+      "status": "complete",
+      "commit_hash": "5ae0b6e"
+    },
+    "section-11-classifier-heuristic": {
+      "status": "complete",
+      "commit_hash": "fd64930"
+    },
+    "section-12-classifier-haiku": {
+      "status": "complete",
+      "commit_hash": "ca99174"
+    },
+    "section-13-decision-log": {
+      "status": "complete",
+      "commit_hash": "ad4c945ec89c5771d8d6f03f0a706dda84728843"
+    },
+    "section-14-outcome-tagger": {
+      "status": "complete",
+      "commit_hash": "37dc62deaf8fca04f3c67d55eba9872c8bdf29b4"
+    },
+    "section-15-report-cli": {
+      "status": "complete",
+      "commit_hash": "e615621"
+    },
+    "section-16-tune": {
+      "status": "complete",
+      "commit_hash": "afbb2b4"
+    },
+    "section-17-dashboard-server": {
+      "status": "complete",
+      "commit_hash": "84f8adc"
     }
   },
   "pre_commit": {

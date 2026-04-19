@@ -23,7 +23,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:all": "npm run lint && npm run typecheck && npm run test"
+    "test:all": "npm run lint && npm run typecheck && npm run test",
+    "build:dashboard": "cd src/dashboard/frontend && npm ci && npm run build"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
@@ -44,6 +45,12 @@
     "@vitest/coverage-v8": "^1.6.0",
     "eslint": "^8.57.0",
     "typescript": "^5.5.4",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "jsdom": "^24.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7"
   }
 }

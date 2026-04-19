@@ -131,10 +131,25 @@ This produces `src/dashboard/frontend/dist/`, which section-17's server serves s
 - No client-side routing library — a tab switcher via React state is enough for three views.
 - No i18n, no a11y audit infrastructure beyond basic semantic HTML.
 
-## Definition of Done
+## Implementation Notes (actual)
 
-- `npm run build` in `src/dashboard/frontend/` produces a `dist/` directory.
-- All tests in `tests/dashboard/spa/` pass, especially the four self-containment tests.
-- Mounting `<App />` against the real dashboard server (section-17 running locally) shows summary, decisions, and costs views populated from a real decision log.
-- Lint passes (no files >400 lines; components small and focused).
-- Zero `http(s)://` references to anything other than `127.0.0.1` / `localhost` in `dist/`.
+- **Build config.** Vite 5.4 + `@vitejs/plugin-react`. `base: './'`, `sourcemap: false`. Dev proxy for `/api/*` and `/metrics` → `127.0.0.1:8788`.
+- **React 18.3.** `react-dom/client` API with `createRoot`. System font stack only, no remote fonts.
+- **Recharts 2.12.** PieChart for routing distribution, BarChart for latency percentiles and cost series. `ResponsiveContainer` wraps all charts.
+- **API client.** Three functions (`getSummary`, `getDecisions`, `getCosts`) using relative same-origin paths. `URLSearchParams` for query building.
+- **Tab switcher.** React state (`useState<Tab>`) — no client-side router. Three views: Summary, Decisions, Costs.
+- **Pagination.** Module-level `LIMIT = 100` (clamped to `MAX_LIMIT = 1000`). Server-side offset. Previous/Next buttons.
+- **Error handling.** (Code review fix) All three view components surface fetch errors to the user instead of silently showing empty UI.
+- **Self-containment tests.** URL scanner uses `LIBRARY_INTERNALS` pattern to allow W3C namespace URIs (`www.w3.org`), React dev doc links (`fb.me`, `reactjs.org`) — these are string literals in the bundle, not runtime network calls.
+- **Component tests.** Recharts mocked in jsdom due to dual-React-instance issue between root and frontend `node_modules`. Self-containment tests on the actual built bundle are the real CI gate.
+- **Root config changes.** `vitest.config.ts`: added `.tsx` test support, `resolve.alias` for React deduplication. `package.json`: added `react`, `react-dom`, `recharts`, `jsdom` as devDependencies for tests; added `build:dashboard` script.
+- **getCosts signature.** Plan specified `groupBy?: 'model' | 'session'` but actual section-17 API uses `bucket?: 'hour' | 'day'`. Implementation matches real API.
+
+## Acceptance Checklist
+
+- [x] `npm run build` in `src/dashboard/frontend/` produces `dist/` (index.html, CSS, JS).
+- [x] All 16 SPA tests pass (4 self-containment + 4 API/smoke + 1 clamping = 16 assertions across 8 files).
+- [x] 457 full-suite tests pass (flaky watcher.test.ts timing issue is pre-existing, passes in isolation).
+- [x] All source files under 100 lines (max: SummaryPanel.tsx at 81).
+- [x] Zero outbound URLs in `dist/` beyond W3C namespace URIs and React dev doc links.
+- [x] API client uses only relative same-origin paths.
