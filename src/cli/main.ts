@@ -74,6 +74,7 @@ function buildProgram(
       box.code = runVersion(stdout);
     });
   registerReport(program, box, stdout, stderr);
+  registerTune(program, box, stdout, stderr);
   return program;
 }
 
@@ -94,6 +95,24 @@ function registerReport(
     .action(async (_cmdOpts: unknown, cmd: Command) => {
       const { runReport } = await import('./report.js');
       box.code = await runReport(cmd.args as readonly string[], { stdout, stderr });
+    });
+}
+
+function registerTune(
+  program: Command,
+  box: ActionBox,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream,
+): void {
+  // Flags intentionally not declared — same reason as report (see above).
+  program
+    .command('tune')
+    .description('Suggest policy-rule changes (flags: --since <dur>, --log-dir <path>, --config <path>)')
+    .allowUnknownOption(true)
+    .helpOption(false)
+    .action(async (_cmdOpts: unknown, cmd: Command) => {
+      const { runTune } = await import('./tune.js');
+      box.code = await runTune(cmd.args as readonly string[], { stdout, stderr });
     });
 }
 

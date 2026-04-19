@@ -1,0 +1,17 @@
+port: 7879
+mode: live
+rules:
+  - id: plan-to-opus
+    when: { planMode: true }
+    then: { choice: opus }
+
+  - id: trivial-to-haiku
+    when:
+      all:
+        - { messageCount: { lt: 5 } }
+        - { toolUseCount: { eq: 0 } }
+    then: { choice: haiku }
+
+  - id: retry-escalate
+    when: { retryCount: { gte: 2 } }
+    then: { escalate: 1 }

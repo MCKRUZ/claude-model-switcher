@@ -146,3 +146,25 @@ Use stub fixtures; do not fully specify rule-engine internals. Import real `anal
 ## File-size budget
 
 Each of `analyze.ts`, `suggest.ts`, `diff.ts`, `cli/tune.ts` should stay under 150 lines. If `diff.ts` threatens to grow past that because of YAML hunk location logic, split the "find rule block by id" helper into `src/tune/locate.ts`.
+
+## Implementation notes (actual, post-build)
+
+- **Outcome field naming.** The outcomes.jsonl sidecar uses camelCase (`requestHash`, `tag`, `ts`) — not snake_case like the section spec implies. The analyzer reads the real schema.
+- **Tier resolution.** `tierOf(modelId, new Map())` falls back to substring matching (model ID contains "haiku"/"sonnet"/"opus"). Custom model names are silently skipped by the try/catch in `suggestOne`. This is intentional — tune only suggests changes for standard Anthropic model families.
+- **YAML quote handling.** Code review found that bare-only regex matching would silently fail on quoted YAML values (`id: "my-rule"`, `choice: "haiku"`). Fixed post-review with optional `["']?` in all three diff.ts regex patterns.
+- **Commander wiring.** Same pattern as section-15 report: flags intentionally NOT declared via `.option()`. With `.allowUnknownOption(true)`, commander passes the full flag tail to `cmd.args` which `runTune` parses internally.
+- **`latencySum`/`latencyCount` in RuleStats** are accumulated but not consumed by `suggest.ts`. Kept per the section spec; section-17/18 may use them for dashboard display.
+- **Test count:** 19 tests across 4 files (analyze: 4, suggest: 4, diff: 6, tune-cli: 5).
+
+## Acceptance Checklist
+
+- [x] Weak-rule detection test passes (fires=100, 80% frustration, haiku → sonnet).
+- [x] Unified-diff output, no in-place edit (byte-identical config before/after).
+- [x] Zero suggestions → exit 0, empty stdout, stderr "no suggestions".
+- [x] Sample-size floor test (fires=5, 100% frustration → not flagged).
+- [x] Abstain and shadow records skipped by analyzer.
+- [x] Missing outcomes counted as "unknown", not inflating frustration ratio.
+- [x] `ccmux tune` wired into CLI dispatcher and visible in `ccmux --help`.
+- [x] No `console.log`; no stack traces in error messages.
+- [x] All files under 400 lines; all functions under 50 lines.
+- [x] Coverage on new code ≥ 80% (19 tests).
