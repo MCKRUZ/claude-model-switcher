@@ -203,3 +203,35 @@ export function createOutcomeTagger(
 - No changes to any file outside `src/decisions/outcome.ts` and its test file.
 - `outcomes.jsonl` is written next to `decisions.jsonl` with one line per tagged `requestHash`, first-write-wins.
 - Coverage on the new file is at least 80%.
+
+---
+
+## Implementation Outcome (2026-04-18)
+
+Status: ✅ Implemented (10 tests passing).
+
+### Deviations from plan
+
+- **Public API gained `flush()`** — needed by tests so the in-memory store
+  can be inspected after `ingest()` queues an async write. Production code
+  ignores it; only tests await it.
+- **Sidecar rotation** — left as a single `outcomes.jsonl` for now. The spec
+  calls for mirroring decision-log rotation, but no rotation events are
+  plumbed yet. Defer until the wiring section that owns the lifecycle.
+- **Recent-hash store carries `{tsMs, sessionId}`**, not just `tsMs` — the
+  `retried` tag attaches to the *prior* decision, so the tag's `sessionId`
+  must come from the prior occurrence (per code review).
+- **Test "uses fake timers" meta-check** from the spec was dropped as a
+  no-op convention assertion; instead, every timing-sensitive test in the
+  file uses `vi.useFakeTimers()` directly via the `beforeEach` hook.
+
+### Code-review fixes applied
+
+1. **Retry tag attribution** — uses prior occurrence's `sessionId` so cross-
+   session retries are correctly labeled.
+2. **readLines failure test** — added a case where the seed iterator throws;
+   `start()` resolves with a `outcome_seed_failed` warn.
+
+### Test count
+
+10 tests, all green.
