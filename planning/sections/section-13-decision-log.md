@@ -16,19 +16,29 @@ Parallelizable with: section-10-wrapper, section-11-classifier-heuristic, sectio
 
 ## Files to Create
 
+> Implementation note: paths landed under `src/decisions/` (not `src/feedback/`)
+> to match the project's existing top-level convention. The `DecisionRecord`
+> type lives next to its writer in `src/decisions/types.ts` rather than in
+> `src/types/decision.ts` — sections 14-17 import from `src/decisions/types.js`.
+
 ```
-src/feedback/decision-log.ts        # DecisionLogWriter: stream, byte counter, rotation
-src/feedback/rotation.ts            # size + daily rotation policies, retention cleanup
-src/feedback/cost.ts                # usage parsing + pricing-table driven cost math
-src/feedback/redaction.ts           # hashed | full | none content modes
-src/feedback/record.ts              # DecisionRecord type + builder
-src/types/decision.ts               # exported DecisionRecord interface (shared with dashboard)
-tests/decisions/decision-log.test.ts
-tests/decisions/rotation.test.ts
-tests/decisions/cost.test.ts
-tests/decisions/redaction.test.ts
-tests/fixtures/decisions/…          # golden JSONL samples
+src/decisions/types.ts              # DecisionRecord + DecisionMode + DecisionSource
+src/decisions/_fs.ts                # fsHelpers indirection (so tests can vi.spyOn ESM-exported fs)
+src/decisions/redaction.ts          # hashed | full | none modes; recursive auth-header guard
+src/decisions/cost.ts               # parseUsage + computeCostUsd (warn-once on unknown model)
+src/decisions/rotate.ts             # daily/size policies, EBUSY/EPERM rename fallback, retention by filename date
+src/decisions/record.ts             # buildDecisionRecord projector
+src/decisions/log.ts                # DecisionLogWriter: bounded queue, serialized promise chain, in-process byte counter
+src/decisions/reader.ts             # readDecisions(dir, {since, limit}) async iterator (used by §15/§17)
+tests/decisions/redaction.test.ts   # 8 tests
+tests/decisions/cost.test.ts        # 8 tests
+tests/decisions/rotation.test.ts    # 7 tests
+tests/decisions/record.test.ts      # 5 tests
+tests/decisions/decision-log.test.ts # 14 tests
 ```
+
+Total: 8 source files, 5 test files, 42 tests. No JSONL fixture files were
+needed — the golden round-trip lives inline in `decision-log.test.ts`.
 
 Log directory layout:
 ```
@@ -268,3 +278,30 @@ Config schema shape is defined in section-03; this section only consumes the typ
 - Golden-file test: feed a fixed `DecisionRecord` through the writer and assert byte-for-byte equality against `tests/fixtures/decisions/sample.jsonl`.
 - Files never exceed `maxBytes` + one-record slop under size rotation.
 - Auth headers absent from every fixture in `tests/fixtures/decisions/` (grep check in CI).
+
+---
+
+## Implementation Outcome (2026-04-18)
+
+Status: ✅ Implemented, reviewed, and committed.
+
+### Deviations from plan
+
+- **Module location:** `src/feedback/` → `src/decisions/` (project convention).
+- **DecisionRecord home:** Lives at `src/decisions/types.ts`, not `src/types/decision.ts`.
+- **fs indirection:** Added `src/decisions/_fs.ts` exporting a mutable `fsHelpers` object so vitest can `vi.spyOn(fsHelpers, 'renameSync')` etc. ESM module exports are read-only descriptors and cannot be spied directly.
+- **Reader added:** `src/decisions/reader.ts` (async iterator) was not in the original Files-to-Create list but is required by §15/§17 and ships with this section.
+- **Daily rollover:** Uses `getUTC*` accessors so `dateStamp` always returns UTC (`toISOString().slice(0,10)` equivalent). The first impl used local time; switched per code review.
+- **Fixture files:** Not needed — the golden round-trip test inlines the fixed record. The "auth headers absent from fixtures (grep check)" line above is therefore moot for this section; redaction.test.ts greps `src/cli/*.ts` instead to enforce the spec rule that privacy mode is config-only (no CLI flag).
+
+### Code-review fixes applied (see code_review/section-13-interview.md)
+
+1. **Infinite rotation retry bug** — `log.ts` now resets `bytes = 0` if `rotateRename` throws, so we don't re-enter the rotation branch on every subsequent append.
+2. **Recursive auth-header guard** — `redaction.ts` `ensureNoAuth` now walks the full value tree, not just top-level keys.
+3. **droppedPostAccept counter** — writer exposes `droppedPostAccept()` for observability of write failures after a record was accepted into the queue.
+4. **Real queue-full test** — replaced the closed-then-append test with one that synchronously enqueues 1500 records to actually exercise the MAX_QUEUE drop path; kept the closed test as a separate case.
+5. **JSDoc contract** — `redactSignals` now documents that section-04 is responsible for redacting message bodies / tool-call inputs.
+
+### Test count
+
+42 tests, all green. (cost: 8, record: 5, redaction: 8, rotation: 7, decision-log: 14.)
