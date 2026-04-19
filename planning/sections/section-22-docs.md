@@ -111,3 +111,30 @@ CLI entry: `npx tsx scripts/docs-check.ts` exits 0 on success, 1 with a human-re
 - Internationalization. English only for v1.
 - Screenshots beyond one hero image in `README.md`.
 - A docs site generator (MkDocs, Docusaurus). Plain Markdown in-repo only.
+
+## Implementation Notes (Post-Implementation)
+
+### Files Created/Modified
+- `README.md` — rewritten with pitch, badges, install, quickstart, "What ccmux does NOT do", doc link table
+- `scripts/docs-check.ts` — CI-runnable validator: link checker, YAML fence lint, required-string check, placeholder check
+- `tests/release/docs-check.test.ts` — integration test for docs-check
+- `docs/quickstart.md` — 5-step walkthrough (install, init, run, report, tune)
+- `docs/cli.md` — 8 CLI commands + dashboard module note
+- `docs/config-reference.md` — all config keys with YAML examples
+- `docs/rule-dsl.md` — all/any/not composition, 14 signals, 3 worked examples
+- `docs/recipes.md` — frugal, balanced, opus-forward with YAML and cost profiles
+- `docs/privacy.md` — three logging modes, zero-telemetry stance, hashed-log linkability
+- `docs/troubleshooting.md` — 8 symptom/cause/fix entries
+- `docs/architecture.md` — ASCII flow diagram, components, design decisions
+- `docs/threat-model.md` — scope, protections, non-protections, linkability caveat
+
+### Deviations from Plan
+1. **`ccmux dashboard` CLI command removed from docs** — the dashboard server module exists (`src/dashboard/`) but no CLI command is registered. Code review caught this; docs updated to reflect reality.
+2. **Decision log path** — docs use `~/.config/ccmux/logs/decisions/` (actual path) instead of `~/.local/state/ccmux/decisions/` (plan path).
+3. **Config key names** — adapted to match actual implementation: `stickyModel.sessionTtlMs` instead of `session.ttl_hours`, `classifier.model` instead of `classifier.pin`, `logging.rotation.maxFiles/maxSizeMb` instead of `logging.retention_days`.
+4. **YAML fence validation scope** — added `rule-dsl.md` to the checked files (code review fix), not just config-reference.md and recipes.md.
+5. **No LICENSE file** — already existed from section-01.
+
+### Test Summary
+- 1 integration test in `tests/release/docs-check.test.ts` — validates all docs pass link, YAML, required-string, and placeholder checks
+- Full suite: 517 tests pass (1 pre-existing flaky watcher test intermittent)
