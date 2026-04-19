@@ -51,6 +51,13 @@ Routing distribution sums to 100% across all observed `chosen_model` values (inc
 - `src/report/duration.ts` — parse `7d`/`24h`/`30m` → milliseconds.
 - Wire `report` into the root `ccmux` CLI dispatcher (section-05 owns the CLI entry; this section adds the `report` subcommand registration).
 
+### Implementation notes (actual, post-build)
+
+- **Decision-record field names.** The spec uses `chosen_model` / `latency_ms` / `cost_usd` / `project_path`; the real schema from section-13 uses `forwarded_model` / `upstream_latency_ms` / `cost_estimate_usd` and stores `projectPath` inside `extracted_signals`. Aggregation reads the real names.
+- **Commander flag wiring.** Flags are intentionally NOT declared via `.option()` on the `report` subcommand. With `.allowUnknownOption(true)` set, commander passes the entire flag tail through to `cmd.args`, which `runReport` parses with its own argv parser. This keeps the `runReport(argv)` signature testable in isolation and avoids double-parsing. See the inline comment in `src/cli/main.ts`.
+- **Null-cost semantics.** `totalWithoutOverhead` is null iff no record had a base cost; `totalWithOverhead` is null iff no record had any cost component. The invariant `withOverhead − withoutOverhead === sum(classifier_cost_usd)` holds when both totals are numeric. In the edge case where every record lacks a base cost, both columns render "—" and no diff is meaningful. See the block comment at the top of `src/report/aggregate.ts`.
+- **Integration test added** (not listed in the original plan): `tests/cli/report.test.ts` exercises the full `run(['report', ...])` path through commander to prevent a regression of the flag-wiring bug found in code review.
+
 Keep every file under 400 lines and every function under 50 lines (global standards). Table rendering is pure; no side effects except the final `process.stdout.write`.
 
 ## Tests FIRST (from claude-plan-tdd §10.1)
@@ -123,11 +130,11 @@ No other exports are required. Keep public surface minimal (YAGNI).
 
 ## Acceptance Checklist
 
-- [ ] All five plan-tdd tests pass.
-- [ ] All six supplementary tests pass.
-- [ ] `ccmux report` wired into the CLI dispatcher and visible in `ccmux --help`.
-- [ ] No `console.log` (use `process.stdout.write` / pino for diagnostics).
-- [ ] No file exceeds 400 lines; no function exceeds 50 lines.
-- [ ] Coverage on new code ≥ 80%.
-- [ ] Missing log directory exits non-zero with a clear, non-leaky message.
-- [ ] Works identically on Linux, macOS, and Windows (CI matrix for section-13's reader already covers this; no OS-specific paths here — use section-02's path helpers).
+- [x] All five plan-tdd tests pass.
+- [x] All six supplementary tests pass.
+- [x] `ccmux report` wired into the CLI dispatcher and visible in `ccmux --help`.
+- [x] No `console.log` (use `process.stdout.write` / pino for diagnostics).
+- [x] No file exceeds 400 lines; no function exceeds 50 lines.
+- [x] Coverage on new code ≥ 80%.
+- [x] Missing log directory exits non-zero with a clear, non-leaky message.
+- [x] Works identically on Linux, macOS, and Windows (CI matrix for section-13's reader already covers this; no OS-specific paths here — use section-02's path helpers).

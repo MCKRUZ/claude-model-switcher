@@ -73,7 +73,28 @@ function buildProgram(
       const { runVersion } = await import('./version.js');
       box.code = runVersion(stdout);
     });
+  registerReport(program, box, stdout, stderr);
   return program;
+}
+
+function registerReport(
+  program: Command,
+  box: ActionBox,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream,
+): void {
+  // Flags are intentionally NOT declared via `.option()` — commander would
+  // consume them and runReport's argv would be empty. `allowUnknownOption`
+  // lets the whole tail (`--since 7d --format json`) reach `cmd.args`.
+  program
+    .command('report')
+    .description('Summarize the decision log (flags: --since <dur>, --group-by <model|project>, --format <ascii|json>)')
+    .allowUnknownOption(true)
+    .helpOption(false)
+    .action(async (_cmdOpts: unknown, cmd: Command) => {
+      const { runReport } = await import('./report.js');
+      box.code = await runReport(cmd.args as readonly string[], { stdout, stderr });
+    });
 }
 
 function handleCommanderError(err: unknown, stderr: NodeJS.WritableStream): number {
