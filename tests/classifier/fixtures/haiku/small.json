@@ -1,0 +1,29 @@
+{
+  "signals": {
+    "planMode": null,
+    "messageCount": 1,
+    "tools": ["Read"],
+    "toolUseCount": 0,
+    "estInputTokens": 120,
+    "fileRefCount": 0,
+    "retryCount": 0,
+    "frustration": null,
+    "explicitModel": null,
+    "projectPath": null,
+    "sessionDurationMs": 0,
+    "betaFlags": [],
+    "sessionId": "s-small",
+    "requestHash": "h-small"
+  },
+  "body": {
+    "messages": [
+      { "role": "user", "content": "What is 2+2?" }
+    ]
+  },
+  "requestHash": "h-small",
+  "incomingHeaders": {
+    "x-api-key": "sk-test-xkey",
+    "anthropic-version": "2023-06-01",
+    "content-type": "application/json"
+  }
+}

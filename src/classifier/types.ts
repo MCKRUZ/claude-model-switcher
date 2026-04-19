@@ -13,6 +13,12 @@ export interface ClassifierInput {
   readonly body: unknown;
   /** Canonical hash from §7.2, used for cache keying by §12. */
   readonly requestHash: string;
+  /**
+   * Sanitized intercepted-request headers (lower-cased keys). Required by
+   * §12 to forward auth/anthropic-version/anthropic-beta to Haiku. The
+   * heuristic classifier ignores this field.
+   */
+  readonly incomingHeaders?: Readonly<Record<string, string>>;
 }
 
 export interface ClassifierResult {
@@ -24,6 +30,8 @@ export interface ClassifierResult {
   readonly source: 'haiku' | 'heuristic';
   readonly latencyMs: number;
   readonly rationale?: string;
+  /** USD cost of the classifier call itself. Present only when source === 'haiku'. */
+  readonly classifierCostUsd?: number;
 }
 
 export interface Classifier {

@@ -133,3 +133,27 @@ describe('assertAllowedEndpoint', () => {
 2. A grep of the built `dist/classifier/haiku.js` shows the literal string `https://api.anthropic.com/v1/messages` and no other `api.*` or HTTP URL.
 3. Cancelling a classifier call (via timeout) leaves any concurrent `/v1/messages` proxy call in section-04 unaffected — covered by an integration test when section-15 lands, but verify manually here by running two concurrent requests with the classifier forced to time out.
 4. `classifierCostUsd` appears in `ClassifierResult` only when `source === 'haiku'` and the response parsed cleanly.
+
+## Implementation Notes (post-build)
+
+- **Files actually created/modified:**
+  - `src/classifier/types.ts` — extended (added optional `incomingHeaders` to `ClassifierInput` and optional `classifierCostUsd` to `ClassifierResult`; both opt-in to avoid breaking the §11 heuristic).
+  - `src/classifier/prompt.ts` — new; exports `CLASSIFIER_PROMPT` and `CLASSIFIER_PROMPT_VERSION`.
+  - `src/classifier/haiku.ts` — new; exports `HAIKU_ENDPOINT`, `assertAllowedEndpoint`, `createHaikuClassifier`, `HaikuClassifierDeps`.
+  - `tests/classifier/haiku.test.ts` — new (30 tests).
+  - `tests/classifier/fixtures/haiku/{small,large,multi-tool}.json` — new minimal `ClassifierInput` fixtures.
+
+- **Cost formula:** uses explicit `PricingEntry` fields (`input`, `output`, `cacheRead`, `cacheCreate`) directly — not multipliers off `input`. PricingEntry was already richer than the spec assumed.
+
+- **Mocking choice:** the section spec suggested `msw` or undici's `MockAgent`. We use a lighter approach — the factory accepts an injected `fetchImpl`, and tests pass a `vi.fn` that records calls. Avoids the dev-dependency churn of adding `msw` and keeps the test surface narrower (raw URL/headers/body assertions).
+
+- **Code-review fixes applied (see `planning/implementation/code_review/section-12-interview.md`):**
+  - Short-circuit when `deadline.aborted` at entry, eliminating a timer leak if `AbortSignal.any` were called against an already-aborted signal.
+  - `clearTimeout` moved to outermost `finally` so the timeout budget covers `response.json()` body read, not just the headers fetch.
+  - Added test: both `x-api-key` and `authorization` present → only `x-api-key` is forwarded.
+  - Added test: 4xx response returns `null` and never invokes `response.json()` (no auth-key leakage path).
+  - The `deps.endpoint` factory parameter retained as a defensive allowlist hook for future config plumbing (per user decision); clarifying comment added.
+
+- **Out of scope:** `RaceClassifier` orchestration in `src/classifier/index.ts` is owned by §11/§13 — left as the existing placeholder. The shared result cache referenced in §8.4 is also not introduced here.
+
+- **Test status:** 30/30 pass. Pre-existing typecheck error in `tests/policy/recipes.test.ts` (import-assertion syntax) is unrelated and not introduced by this section.

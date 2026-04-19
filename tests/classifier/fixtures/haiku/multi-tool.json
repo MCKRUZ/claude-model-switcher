@@ -1,0 +1,29 @@
+{
+  "signals": {
+    "planMode": false,
+    "messageCount": 4,
+    "tools": ["Read", "Edit", "Bash", "Grep"],
+    "toolUseCount": 3,
+    "estInputTokens": 2400,
+    "fileRefCount": 2,
+    "retryCount": 0,
+    "frustration": null,
+    "explicitModel": null,
+    "projectPath": "/repo",
+    "sessionDurationMs": 120000,
+    "betaFlags": [],
+    "sessionId": "s-multi",
+    "requestHash": "h-multi"
+  },
+  "body": {
+    "messages": [
+      { "role": "user", "content": "Investigate why the test suite is flaking on CI and propose a fix." }
+    ]
+  },
+  "requestHash": "h-multi",
+  "incomingHeaders": {
+    "x-api-key": "sk-test-xkey",
+    "anthropic-version": "2023-06-01",
+    "content-type": "application/json"
+  }
+}

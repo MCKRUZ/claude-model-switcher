@@ -1,0 +1,30 @@
+{
+  "signals": {
+    "planMode": false,
+    "messageCount": 12,
+    "tools": ["Read", "Edit", "Write", "Bash", "Grep", "Glob"],
+    "toolUseCount": 7,
+    "estInputTokens": 9500,
+    "fileRefCount": 6,
+    "retryCount": 0,
+    "frustration": null,
+    "explicitModel": null,
+    "projectPath": "/repo",
+    "sessionDurationMs": 600000,
+    "betaFlags": [],
+    "sessionId": "s-large",
+    "requestHash": "h-large"
+  },
+  "body": {
+    "messages": [
+      { "role": "user", "content": "Refactor the auth middleware across all three services to use the new shared session token store; update all tests and migrations accordingly." }
+    ]
+  },
+  "requestHash": "h-large",
+  "incomingHeaders": {
+    "authorization": "Bearer sk-test-bearer",
+    "anthropic-version": "2023-06-01",
+    "anthropic-beta": "prompt-caching-2024-07-31,tools-2024-05-16",
+    "content-type": "application/json"
+  }
+}
