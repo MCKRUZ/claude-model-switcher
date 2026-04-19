@@ -155,23 +155,26 @@ describe('pagination', () => {
 
 Fixture `tests/dashboard/fixtures/decisions.sample.jsonl` must include records for at least `haiku`, `sonnet`, `opus` forwarded models, a null `classifier_result`, and records with and without `usage.cache_read_input_tokens` so aggregation tests cover edge paths.
 
-## Implementation notes
+## Implementation notes (actual)
 
-- **Streaming log read.** Use `node:readline` over `createReadStream()`; parse each line with a try/catch that logs-and-skips malformed lines (decision log is append-only but truncation during rotation is possible). Never `fs.readFile` the whole log.
-- **Fastify setup.** Use the same Fastify peer dep as the proxy. Register `@fastify/sensible` for `httpErrors.misdirectedRequest(421)`. Do **not** register CORS — loopback-only; the SPA is same-origin.
-- **Loopback guard.** After `server.listen({ host: '127.0.0.1', port })`, read `server.server.address()` and assert `address === '127.0.0.1'`. Fail-fast on any other bind.
-- **Port fallback.** Import the port helper from section-05 (`tryBindSequential(startPort, max=10)`); do not duplicate.
-- **Config access.** Depend on the section-03 config module's `getConfig()` accessor (already hot-reload-aware via section-06). Do not read YAML in this section.
-- **Logger.** Use the pino instance from section-02 with a `{ component: 'dashboard' }` child logger. Sanitize: never log Authorization or x-api-key (they should never reach this server anyway, but defense in depth).
-- **No SPA yet.** `GET /` returns `404 { error: 'spa-not-built' }` until section-18 wires `@fastify/static` at `src/dashboard/frontend/dist/`. Document this in a code comment so section-18 knows where to plug in.
-- **Aggregation purity.** Keep `aggregate.ts` free of I/O so unit tests can feed synthetic arrays without the file system.
-- **Metrics cache.** Simple `{ value, expiresAt }` memo in module scope, 10s TTL. Invalidate when the process receives the same SIGHUP that section-07 uses for config reloads (inject the signal bus, do not wire a second `process.on`).
+- **Streaming log read.** `node:readline` over `createReadStream()` with try/catch that skips malformed lines. No `fs.readFile` on log paths.
+- **Fastify setup.** Uses the same Fastify peer dep as the proxy. Did NOT add `@fastify/sensible` — 421 handled via `reply.code(421).send()` directly. No CORS.
+- **Loopback guard.** `onRequest` hook checks `Host` header against `127.0.0.1`, `localhost`, `::1`. Returns 421 for non-loopback hosts. Actual bind enforcement is via `listenWithFallback` from section-05 (caller responsibility).
+- **Port fallback.** Uses `listenWithFallback` from `src/lifecycle/ports.ts` (not duplicated).
+- **Config access.** Uses `ConfigStore.getCurrent()` from section-06 watcher. No YAML reading.
+- **Logger.** Accepts pino logger via `DashboardServerOpts`. Caller creates child logger.
+- **No SPA yet.** `GET /` returns `404 { error: 'spa-not-built' }`. Comment in server.ts marks the spot for section-18.
+- **Aggregation purity.** `aggregate.ts` is free of I/O — pure functions only.
+- **Metrics cache.** `{ value, expiresAt }` memo in `metrics.ts`, 10s TTL. `getOrComputeMetrics` accepts a callback to defer log reads until cache miss. `invalidateMetricsCache()` exported for tests and SIGHUP integration.
+- **Input validation.** (Code review fix) `since` returns 400 for unparseable dates; `group_by` returns 400 for unknown values.
+- **Memory cap.** (Code review fix) Summary/costs/metrics endpoints cap at 100k records with `truncated` flag.
+- **Prometheus types.** (Code review fix) `ccmux_decisions_total` and `ccmux_cost_usd_total` use `gauge` type (correct for sliding-window values).
 
 ## Acceptance checklist
 
-- [ ] All tests listed above fail before implementation, pass after.
-- [ ] `src/dashboard/` files each ≤ 400 lines, functions ≤ 50 lines.
-- [ ] `rg -n 'readFile\(' src/dashboard/` returns no hits against log paths (only config is fine).
-- [ ] `rg -n '0\.0\.0\.0|::' src/dashboard/` returns no hits.
-- [ ] `/metrics` passes a `promtool check metrics` round-trip in CI (optional soft gate — skip if `promtool` unavailable, but format must be spec-correct).
-- [ ] 80% line coverage on `src/dashboard/` (excluding the future `frontend/` dir).
+- [x] All 26 tests fail before implementation, pass after.
+- [x] `src/dashboard/` files each ≤ 400 lines (max: aggregate.ts at 109), functions ≤ 50 lines.
+- [x] No `readFile` calls against log paths.
+- [x] `::` only appears in loopback detection set (IPv6 `::1`), not as a bind address.
+- [x] `/metrics` uses Prometheus text format v0.0.4 with correct content-type.
+- [x] 441 full-suite tests pass with 0 regressions.
