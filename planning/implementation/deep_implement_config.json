@@ -98,6 +98,10 @@
     "section-17-dashboard-server": {
       "status": "complete",
       "commit_hash": "84f8adc"
+    },
+    "section-18-dashboard-spa": {
+      "status": "complete",
+      "commit_hash": "b0445b9"
     }
   },
   "pre_commit": {

@@ -122,9 +122,40 @@ Run each recipe through the Policy engine (from section-08) with the signal extr
 - **Exit codes:** 0 success, 1 refused-overwrite, 2 bad args. Don't throw exceptions out of the CLI entry; catch and map to exit codes.
 - **No network, no telemetry.** `init` is purely local filesystem work.
 
+## Implementation Status: COMPLETE
+
+### Actual Files Created
+| Path | Lines | Purpose |
+|------|-------|---------|
+| `src/cli/init.ts` | 52 | `ccmux init` command — validates recipe name, reads YAML, writes to config path |
+| `tests/cli/init.test.ts` | 100 | 8 tests covering all exit code paths + config-loader round-trip |
+
+### Actual Files Modified
+| Path | Change |
+|------|--------|
+| `src/cli/main.ts` | Added `registerInit()` — commander subcommand with `--recipe` and `--force` options |
+| `package.json` | Added `src/policy/recipes` to `files` array for npm publish |
+
+### Pre-existing Files (from prior sections)
+- `src/policy/recipes/{frugal,balanced,opus-forward}.yaml` — recipe YAMLs
+- `tests/policy/recipes.test.ts` — 9 behavioral tests (load validation + routing ratios)
+- `tests/policy/fixtures/mixed.json` — 20-entry fixture set
+
+### Deviations from Plan
+- Recipe path resolution uses `join(__dirname, '..', '..', 'src', 'policy', 'recipes')` instead of `join(__dirname, 'recipes')` — works from both `src/cli/` and `dist/cli/` without a build copy step.
+- Added try/catch around recipe file read per code review — returns exit 2 on corrupted install instead of raw stack trace.
+- Added `mode: 0o700` to `mkdirSync` per code review — matches `ensureDirs()` in `paths.ts`.
+- Recipes use `mode: live` (not `mode: active` as spec stated) — schema only defines `live | shadow`.
+- Balanced recipe uses `retryCount: { gte: 2 }` (not `>= 1`) — less aggressive escalation.
+- Frugal recipe is simpler than spec described (3 rules, no tool-use escalation) — behavioral tests pass.
+
+### Test Results
+- 17 tests (8 init + 9 recipe): all passing
+- Full suite: 465 pass, 0 fail, 4 skipped
+
 ## Done Criteria
 
-- `npm test` green, including the recipe behavioral thresholds.
-- `ccmux init --recipe frugal` and siblings each write a file that a subsequent `ccmux start` would accept without warnings.
-- The three YAML files exist under `src/policy/recipes/` and are included in the npm `files` manifest.
-- `ccmux init --help` lists the three valid recipe names.
+- [x] `npm test` green, including the recipe behavioral thresholds.
+- [x] `ccmux init --recipe frugal` and siblings each write a file that a subsequent `ccmux start` would accept without warnings.
+- [x] The three YAML files exist under `src/policy/recipes/` and are included in the npm `files` manifest.
+- [x] `ccmux init --help` lists the three valid recipe names.

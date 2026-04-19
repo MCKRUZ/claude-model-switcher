@@ -73,9 +73,32 @@ function buildProgram(
       const { runVersion } = await import('./version.js');
       box.code = runVersion(stdout);
     });
+  registerInit(program, box, stdout, stderr);
   registerReport(program, box, stdout, stderr);
   registerTune(program, box, stdout, stderr);
   return program;
+}
+
+function registerInit(
+  program: Command,
+  box: ActionBox,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream,
+): void {
+  program
+    .command('init')
+    .description('Scaffold a starter config.yaml from a recipe (frugal, balanced, opus-forward)')
+    .option('--recipe <name>', 'Recipe to use', 'balanced')
+    .option('--force', 'Overwrite existing config', false)
+    .action(async (cmdOpts: { recipe: string; force: boolean }) => {
+      const { runInit } = await import('./init.js');
+      box.code = runInit({
+        recipe: cmdOpts.recipe,
+        force: cmdOpts.force,
+        stdout,
+        stderr,
+      });
+    });
 }
 
 function registerReport(
