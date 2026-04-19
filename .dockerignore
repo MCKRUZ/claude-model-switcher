@@ -1,0 +1,10 @@
+node_modules
+tests
+coverage
+.github
+.git
+.claude
+planning
+*.tgz
+*.map
+dist/binaries

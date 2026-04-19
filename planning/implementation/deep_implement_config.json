@@ -106,6 +106,10 @@
     "section-19-init-and-recipes": {
       "status": "complete",
       "commit_hash": "2134f13"
+    },
+    "section-20-explain": {
+      "status": "complete",
+      "commit_hash": "67d6b3f"
     }
   },
   "pre_commit": {

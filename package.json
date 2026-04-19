@@ -11,6 +11,12 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "files": [
     "bin",
     "dist",
@@ -25,7 +31,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:all": "npm run lint && npm run typecheck && npm run test",
-    "build:dashboard": "cd src/dashboard/frontend && npm ci && npm run build"
+    "build:dashboard": "cd src/dashboard/frontend && npm ci && npm run build",
+    "check:spa": "node --import tsx scripts/check-spa-bundle.ts src/dashboard/frontend/dist",
+    "prepublishOnly": "npm run build && npm run build:dashboard && npm run test:all && npm run check:spa"
   },
   "dependencies": {
     "chokidar": "^3.6.0",

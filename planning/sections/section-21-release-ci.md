@@ -41,12 +41,12 @@ From the plan:
 
 - `.github/workflows/ci.yml` — PR + push CI: lint, typecheck, `vitest run`, OS matrix (ubuntu-latest, macos-latest, windows-latest), Node 20.
 - `.github/workflows/release.yml` — tag-triggered (`v*.*.*`): builds all four artifacts, runs smoke tests, publishes on success.
-- `scripts/build-binaries.ts` — wrapper that invokes `pkg` by default, falls back to `bun build --compile` when `--bun` is passed or `pkg` exits non-zero. Produces artifacts under `dist/binaries/<os>-<arch>/ccmux[.exe]`. Runs the binary smoke test inline.
+- `scripts/build-binaries.ts` — wrapper that invokes `pkg` by default, falls back to `bun build --compile` when `--bun` is passed or `pkg` exits non-zero. Produces artifacts under `dist/binaries/<os>-<arch>/ccmux-<target>[.exe]` (target-prefixed names to avoid GitHub Release asset collisions).
 - `scripts/smoke/healthz.ts` — starts a ccmux binary on a free port, awaits `/healthz` → 200, sends SIGINT, asserts clean exit. Reused across all four artifacts.
 - `scripts/smoke/sse-roundtrip.ts` — boots a mock upstream (serves a canned SSE stream), runs the artifact with `ANTHROPIC_BASE_URL` pointed at it, issues a `/v1/messages` request, asserts byte-for-byte SSE output matches the golden file. (The golden file is owned by section-04; this script only consumes it.)
 - `scripts/smoke/outbound-stub.ts` — runs under a network namespace / DNS stub that blackholes anything except `api.anthropic.com`; boots the artifact and asserts it makes zero outbound requests on startup (no telemetry, no auto-update).
 - `scripts/check-spa-bundle.ts` — greps `src/dashboard/frontend/dist/**` for `https?://` references, allowlists `localhost`, `127.0.0.1`, and the schema placeholders used by Recharts. Non-zero exit on any unexpected URL.
-- `Dockerfile` — multi-stage (builder on `node:20-alpine` → final on `node:20-alpine`), copies built JS + SPA dist, exposes `CMD ["node", "dist/cli/index.js", "start", "--foreground"]`. Non-root user.
+- `Dockerfile` — multi-stage (builder on `node:20-alpine` → final on `node:20-alpine`), copies built JS + SPA dist + policy recipes + bin shim + package-lock.json; uses `npm ci --omit=dev`; `ENTRYPOINT ["node", "bin/ccmux.js"]` (canonical bin shim, not dist/cli/index.js). Non-root user.
 - `.dockerignore` — excludes `tests/`, `node_modules/`, `.github/`, source maps.
 - `package.json` — add `bin.ccmux`, `exports` map with both `import` (ESM) and `require` (CJS), `files` allowlist, `prepublishOnly` runs the full build + smoke.
 
@@ -176,3 +176,21 @@ The CJS build is what `pkg` consumes via `scripts/build-binaries.ts`.
 - Zero outbound URLs in the SPA bundle (enforced by `scripts/check-spa-bundle.ts`).
 - Zero outbound backend requests on cold start to anything other than `api.anthropic.com` (enforced by `scripts/smoke/outbound-stub.ts`).
 - All workflow actions pinned to commit SHAs.
+
+## Implementation Deviations
+
+- **Binary naming**: Output files are `ccmux-<target>[.exe]` instead of bare `ccmux[.exe]` to prevent GitHub Release asset name collisions across matrix cells.
+- **Exports map**: ESM-only (no CJS `require` entry) since the project is `"type": "module"` throughout. CJS entry for `pkg` uses `dist/cjs/index.cjs` directly in build-binaries.ts.
+- **Dockerfile ENTRYPOINT**: Uses `node bin/ccmux.js` (the canonical shim from `package.json#bin`) instead of `node dist/cli/index.js`.
+- **Dockerfile deps**: Uses `npm ci --omit=dev` with package-lock.json for reproducible installs.
+- **CI TypeScript execution**: All `.ts` scripts in workflows use `npx tsx` or npm scripts, not bare `node`.
+- **bun-fallback dependency**: `needs: [build, binary]` so `if: failure()` triggers only when the binary job actually fails.
+
+## Tests Added (42 total, 6 files)
+
+- `tests/release/check-spa-bundle.test.ts` — 6 tests: clean bundle, external URL detection, W3 allowlist, nested dirs, non-code file skip, line numbers
+- `tests/release/build-binaries.test.ts` — 12 tests: outputPath layout, ALL_TARGETS, pkg invocation, bun invocation, fallback, CLI arg parsing
+- `tests/release/smoke-scripts.test.ts` — 9 tests: argument parsing for healthz, sse-roundtrip, outbound-stub
+- `tests/release/workflow-meta.test.ts` — 8 tests: YAML structure, artifact jobs, smoke steps, trigger, permissions, CI matrix
+- `tests/release/network-purity.test.ts` — 2 tests: cold start purity, no auto-update references in dist
+- `tests/release/config-resolution.test.ts` — 5 tests: platform config paths, CCMUX_HOME, XDG, APPDATA, fallback
