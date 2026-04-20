@@ -4,12 +4,11 @@
 // See planning/sections/section-10-wrapper.md for the full contract.
 
 import { spawn as childSpawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
 import { constants as osConstants } from 'node:os';
 import type { FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
 import { loadConfig } from '../config/loader.js';
-import { resolvePaths, type CcmuxPaths } from '../config/paths.js';
+import { resolvePaths, ensureDirs, type CcmuxPaths } from '../config/paths.js';
 import { startConfigWatcher, type WatcherHandle } from '../config/watcher.js';
 import { createLogger } from '../logging/logger.js';
 import { createProxyServer } from '../proxy/server.js';
@@ -66,7 +65,7 @@ async function startWrapperProxy(opts: WrapperOptions, _token: string): Promise<
     throw new Error(`ccmux run: invalid config: ${msgs}`);
   }
   const { config } = loaded.value;
-  if (opts.logDir) mkdirSync(opts.logDir, { recursive: true, mode: 0o700 });
+  ensureDirs(paths);
   const logger = createLogger(
     opts.logDir ? { destination: 'file', logDir: opts.logDir } : { destination: 'stderr' },
   );
