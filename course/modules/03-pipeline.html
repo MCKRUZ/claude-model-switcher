@@ -1,0 +1,328 @@
+<section class="module" id="module-3">
+
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
+  <div class="module-header animate-in">
+    <div class="module-number">Module 3</div>
+    <h2 class="module-title">The Decision Pipeline</h2>
+    <p class="module-subtitle">How ccmux decides which model gets your request</p>
+  </div>
+
+  <div class="content-block animate-in">
+    <p>
+      Every request that reaches ccmux passes through a sorting facility before it ships. Each package (request)
+      gets scanned, checked against routing rules, weighed by a classifier if the rules have no opinion, and
+      sent down the right conveyor belt to Haiku, Sonnet, or Opus.
+    </p>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 1 — The Five Stages
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Five Stages</h3>
+    <p>
+      Every <code>POST /v1/messages</code> request passes through these five stages before reaching Anthropic.
+      The entire <span class="term" data-definition="A pipeline is a sequence of processing steps where the output of one stage feeds into the next, like an assembly line">pipeline</span>
+      runs synchronously and adds less than 5ms of latency.
+    </p>
+  </div>
+
+  <div class="flow-steps animate-in">
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <p>Parse request</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <p>Extract signals</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <p>Evaluate rules</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <p>Classify (fallback)</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">5</div>
+      <p>Forward + log</p>
+    </div>
+  </div>
+
+  <div class="callout callout-info animate-in">
+    <div class="callout-icon">&#128230;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Sorting Facility Metaphor</strong>
+      <p>Think of this like a package sorting facility. Stage 1 reads the label. Stage 2 scans the contents. Stage 3 checks automated routing rules. Stage 4 asks a human (the classifier) if no rule covers it. Stage 5 puts it on the right truck.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 — What Gets Scanned (Signal Badges)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>What Gets Scanned</h3>
+    <p>
+      In stage 2, the proxy extracts a set of
+      <span class="term" data-definition="A signal is a single measurable property of the request that helps determine its complexity, like token count or tool usage">signals</span>
+      from each request. These are the data points the routing engine uses to make its decision.
+    </p>
+  </div>
+
+  <div class="badge-list animate-in">
+    <div class="badge-item">
+      <code class="badge-code">planMode</code>
+      <span class="badge-desc">Is the AI in <span class="term" data-definition="Plan mode is a state where the AI outlines an approach before executing, typically requiring more capable reasoning">plan mode</span>? Detected from system prompt or headers.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">estInputTokens</code>
+      <span class="badge-desc">Approximate input size, estimated by <span class="term" data-definition="tiktoken is a fast tokenizer library that estimates how many tokens a piece of text will consume, without calling the AI API">tiktoken</span>.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">toolUseCount</code>
+      <span class="badge-desc">How many <span class="term" data-definition="Tool use is when the AI invokes external capabilities like file editing, web search, or running commands during a conversation">tool use</span> invocations the AI has made so far.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">messageCount</code>
+      <span class="badge-desc">How deep into the conversation we are &mdash; more turns often means more complex context.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">frustration</code>
+      <span class="badge-desc"><span class="term" data-definition="Frustration detection identifies repeated user corrections like &quot;that is wrong&quot; or &quot;try again,&quot; signaling the current model may be insufficient">Frustration detection</span> &mdash; catches phrases like &ldquo;that is wrong&rdquo; or &ldquo;try again.&rdquo;</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">retryCount</code>
+      <span class="badge-desc">How many times this exact request has been <span class="term" data-definition="A retry occurs when the same request is sent again, usually after a failure or unsatisfactory response">retried</span>.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">fileRefCount</code>
+      <span class="badge-desc">Number of file paths mentioned in the conversation &mdash; more files usually means a bigger task.</span>
+    </div>
+  </div>
+
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-content">
+      <strong class="callout-title">Graceful Degradation</strong>
+      <p>Each signal extractor is wrapped in try/catch. If one fails (say, <span class="term" data-definition="A token is a chunk of text (roughly 3/4 of a word) that AI models use as their unit of reading and writing">token</span> counting hits a weird edge case), that one signal gets a default value &mdash; the rest still work fine. One broken sensor does not crash the whole system.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 — Watch It Happen (Data Flow Animation)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Watch It Happen</h3>
+    <p>
+      Step through a real request as it flows through the pipeline. Each actor lights up when it handles
+      the package, and a packet travels between them.
+    </p>
+  </div>
+
+  <div class="flow-animation animate-in" data-steps='[
+    {"highlight":"flow-client","label":"Claude CLI sends POST /v1/messages to the local proxy"},
+    {"highlight":"flow-proxy","label":"Proxy receives the request and parses the JSON body","packet":true,"from":"client","to":"proxy"},
+    {"highlight":"flow-signals","label":"Signal extractor scans for tokens, tools, plan mode, frustration","packet":true,"from":"proxy","to":"signals"},
+    {"highlight":"flow-policy","label":"Policy engine checks YAML rules top-to-bottom (first match wins)","packet":true,"from":"signals","to":"policy"},
+    {"highlight":"flow-classifier","label":"No rule matched - classifier scores complexity: score 1.8 = Haiku","packet":true,"from":"policy","to":"classifier"},
+    {"highlight":"flow-proxy","label":"Model chosen! Proxy splices model=haiku into the request","packet":true,"from":"classifier","to":"proxy"},
+    {"highlight":"flow-anthropic","label":"Request forwarded to api.anthropic.com with the chosen model","packet":true,"from":"proxy","to":"anthropic"},
+    {"highlight":"flow-proxy","label":"Response streams back through the proxy, byte-for-byte unchanged"}
+  ]'>
+    <div class="flow-actors">
+      <div class="flow-actor" id="flow-client">
+        <div class="flow-actor-icon" style="background: var(--color-accent-light); border-color: var(--color-accent)">&#128241;</div>
+        <span>Claude CLI</span>
+      </div>
+      <div class="flow-actor" id="flow-proxy">
+        <div class="flow-actor-icon" style="background: #FDEEE9; border-color: var(--color-actor-1)">&#127916;</div>
+        <span>Proxy</span>
+      </div>
+      <div class="flow-actor" id="flow-signals">
+        <div class="flow-actor-icon" style="background: #E4F2F7; border-color: var(--color-actor-2)">&#128269;</div>
+        <span>Signals</span>
+      </div>
+      <div class="flow-actor" id="flow-policy">
+        <div class="flow-actor-icon" style="background: #EDE8F5; border-color: var(--color-actor-3)">&#128203;</div>
+        <span>Policy</span>
+      </div>
+      <div class="flow-actor" id="flow-classifier">
+        <div class="flow-actor-icon" style="background: #FDF5E0; border-color: var(--color-actor-4)">&#127919;</div>
+        <span>Classifier</span>
+      </div>
+      <div class="flow-actor" id="flow-anthropic">
+        <div class="flow-actor-icon" style="background: #E8F5EE; border-color: var(--color-actor-5)">&#9729;&#65039;</div>
+        <span>Anthropic</span>
+      </div>
+    </div>
+    <div class="flow-packet"></div>
+    <div class="flow-step-label">Click "Next Step" to trace a request through the pipeline</div>
+    <div class="flow-controls">
+      <button class="btn btn-primary flow-next-btn">Next Step</button>
+      <button class="btn flow-reset-btn">Restart</button>
+      <span class="flow-progress"></span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 — Reading the Scanner Output (Code Translation)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Reading the Scanner Output</h3>
+    <p>
+      This is the actual return value from the signal extractor. Each <code>safe()</code> wrapper means
+      &ldquo;try this, but if it crashes, use the fallback value instead.&rdquo; The result is frozen so
+      nothing downstream can accidentally mutate it.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/signals/extract.ts:134-149</span>
+      <pre><code><span class="code-keyword">return</span> <span class="code-function">Object.freeze</span>({
+  <span class="code-property">planMode</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'plan-mode'</span>, <span class="code-keyword">null</span>, () <span class="code-operator">=></span>
+    <span class="code-function">detectPlanMode</span>(<span class="code-property">body</span>?.<span class="code-property">system</span>)),
+  <span class="code-property">messageCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'messageCount'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-property">messages</span>.<span class="code-property">length</span>),
+  <span class="code-property">tools</span>: <span class="code-property">toolNames</span>,
+  <span class="code-property">toolUseCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'tool-use-count'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">countToolUse</span>(<span class="code-property">messages</span>)),
+  <span class="code-property">estInputTokens</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'tokens'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">estimateInputTokens</span>(<span class="code-property">body</span>?.<span class="code-property">system</span>, <span class="code-property">messages</span>)),
+  <span class="code-property">fileRefCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'file-refs'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">countFileRefs</span>(<span class="code-property">messages</span>)),
+  <span class="code-property">retryCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'retry'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">retryCount</span>(<span class="code-property">hash</span>, <span class="code-property">sessionContext</span>)),
+  <span class="code-property">frustration</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'frustration'</span>, <span class="code-keyword">null</span>, () <span class="code-operator">=></span>
+    <span class="code-function">detectFrustration</span>(<span class="code-property">messages</span>)),
+  <span class="code-property">explicitModel</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'explicit-model'</span>, <span class="code-keyword">null</span>, () <span class="code-operator">=></span>
+    <span class="code-function">explicitModelOf</span>(<span class="code-property">body</span>)),
+});</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl"><strong>Lock this object</strong> so nothing can change it after creation. Immutability prevents downstream code from accidentally corrupting the signals.</p>
+        <p class="tl"><strong>planMode:</strong> Check if the AI is in planning mode by reading the system prompt. Falls back to <code>null</code> (unknown) if detection fails.</p>
+        <p class="tl"><strong>messageCount:</strong> Count how many messages are in the conversation. Falls back to <code>0</code> if the array is malformed.</p>
+        <p class="tl"><strong>tools:</strong> List all the tool names available in this request. No <code>safe()</code> needed &mdash; already extracted above.</p>
+        <p class="tl"><strong>toolUseCount:</strong> Scan <span class="term" data-definition="A content block is a discrete unit within a message, such as text, tool invocation, or tool result. Messages can contain multiple content blocks">content blocks</span> to count how many times the AI has actually invoked tools.</p>
+        <p class="tl"><strong>estInputTokens:</strong> Estimate token count using tiktoken. This avoids a round-trip to the API just to measure size.</p>
+        <p class="tl"><strong>fileRefCount:</strong> Regex-scan messages for file paths. More files referenced usually correlates with higher complexity.</p>
+        <p class="tl"><strong>retryCount:</strong> Hash the request and check the <span class="term" data-definition="A session is a logical grouping of related requests, tracked by ccmux to maintain context like retry counts and escalation history">session</span> context to see if this exact request has been sent before.</p>
+        <p class="tl"><strong>frustration:</strong> Look for correction patterns in user messages. Falls back to <code>null</code> rather than <code>0</code> because &ldquo;no data&rdquo; differs from &ldquo;no frustration.&rdquo;</p>
+        <p class="tl"><strong>explicitModel:</strong> Check if the user explicitly requested a specific model (via <span class="term" data-definition="HMAC (Hash-based Message Authentication Code) is a cryptographic technique used to verify that a message has not been tampered with">HMAC</span>-signed header or body field). If set, it overrides all other routing.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-info animate-in">
+    <div class="callout-icon">&#9201;</div>
+    <div class="callout-content">
+      <strong class="callout-title">TTL and Signal Freshness</strong>
+      <p>Signals like <code>retryCount</code> and <code>frustration</code> rely on session state that has a <span class="term" data-definition="TTL (Time To Live) is how long a cached value remains valid before it expires and must be recalculated">TTL</span>. If the user walks away for 30 minutes, the session expires and those signals reset to defaults. This prevents stale frustration from a morning session from escalating an afternoon request to Opus.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 5 — Quiz
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Check Your Understanding</h3>
+    <p>Scenario-based questions. Think through the pipeline stages before choosing.</p>
+  </div>
+
+  <div class="quiz-container animate-in" id="quiz-module3">
+
+    <!-- Question 1 -->
+    <div class="quiz-question-block" data-correct="option-a" data-explanation-right="The policy engine evaluates rules top-to-bottom. A trivial rule matching low tokens + zero tools + no plan mode would fire first and route straight to Haiku, skipping the classifier entirely." data-explanation-wrong="Remember: stage 3 (policy rules) runs before stage 4 (classifier). The classifier is only a fallback. With such clear signals -- 200 tokens, 0 tools, no plan mode -- a well-configured rule set handles this without needing the classifier at all.">
+      <h3 class="quiz-question">A user sends a one-line question with no tools. The signal extractor finds: 200 tokens, 0 tools, no plan mode. What happens next?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Policy evaluates rules &mdash; if a trivial-to-haiku rule matches, it picks Haiku immediately</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The classifier scores complexity first, then policy decides</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>All requests go through both policy and classifier before a model is chosen</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Frustration means the user is correcting the AI repeatedly, which suggests the current (cheaper) model cannot handle the task. The pipeline escalates to a more capable model so the user gets a better answer." data-explanation-wrong="Frustration detection exists specifically to catch cases where a cheaper model is failing the user. Repeated corrections like &ldquo;that is wrong&rdquo; or &ldquo;try again&rdquo; trigger escalation to a more capable (and more expensive) model. It would not make sense to stay on the same model or downgrade.">
+      <h3 class="quiz-question">The frustration signal fires. What does this probably mean for model selection?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Switch to the cheapest model &mdash; no point spending more on a frustrated user</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Escalate to a more capable model &mdash; the cheaper one was not handling it well</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Keep the same model but increase the token limit</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="quiz-question-block" data-correct="option-c" data-explanation-right="Each extractor is wrapped in safe() with its own try/catch and fallback value. If token counting crashes, estInputTokens defaults to 0 while every other signal -- plan mode, tool count, frustration -- still works normally." data-explanation-wrong="Look at the code translation again: every signal uses safe(logger, name, fallback, fn). That wrapper catches any error in fn and returns the fallback value. The extractors are independent -- one failure does not affect the others. This is the &ldquo;graceful degradation&rdquo; principle in action.">
+      <h3 class="quiz-question">The token counting extractor crashes on a weird input. What happens to the rest of the signals?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The entire signal extraction fails and the request is forwarded with no routing</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The request is rejected with a 500 error</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Everything else works fine &mdash; each extractor fails independently with a safe fallback</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 4 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="The <span class=&quot;term&quot; data-definition=&quot;abstain means the classifier explicitly declines to make a decision, deferring to a default model rather than guessing&quot;>abstain</span> concept applies when neither rules nor classifier have enough confidence. But here the user explicitly requested a model, so explicitModel is set and overrides everything -- rules, classifier, and all." data-explanation-wrong="The explicitModel signal is checked before rules or classifier even run. When a user explicitly requests a specific model (via signed header), that preference takes absolute priority. The pipeline respects the human override -- no rule or classifier can overrule it.">
+      <h3 class="quiz-question">A user sets an explicit model override to Opus. The policy rules say this request should go to Haiku. What wins?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Policy rules win &mdash; they are evaluated first</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The explicit override wins &mdash; user intent always takes priority</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The classifier breaks the tie between the two conflicting signals</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <button class="quiz-check-btn" onclick="checkQuiz('quiz-module3')">Check Answers</button>
+    <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module3')">Try Again</button>
+  </div>
+
+</section>

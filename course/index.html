@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How ccmux Works</title>
+
+  <!-- Google Fonts: Bricolage Grotesque · DM Sans · JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400;1,9..40,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <style>
+    :root {
+      --color-accent:       #2A7B9B;
+      --color-accent-hover: #1F6280;
+      --color-accent-light: #E4F2F7;
+      --color-accent-muted: #5A9DB8;
+    }
+  </style>
+
+  <script src="main.js" defer></script>
+</head>
+<body>
+
+  <nav class="nav" id="nav">
+    <div class="progress-bar" id="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+    <div class="nav-inner">
+      <span class="nav-title">How ccmux Works</span>
+      <div class="nav-dots" id="nav-dots" role="tablist">
+        <button class="nav-dot" data-target="module-1" data-tooltip="The Money-Saving Proxy" role="tab" aria-label="Module 1: The Money-Saving Proxy"></button>
+        <button class="nav-dot" data-target="module-2" data-tooltip="Meet the Cast" role="tab" aria-label="Module 2: Meet the Cast"></button>
+        <button class="nav-dot" data-target="module-3" data-tooltip="The Decision Pipeline" role="tab" aria-label="Module 3: The Decision Pipeline"></button>
+        <button class="nav-dot" data-target="module-4" data-tooltip="The Smart Parts" role="tab" aria-label="Module 4: The Smart Parts"></button>
+        <button class="nav-dot" data-target="module-5" data-tooltip="Take the Wheel" role="tab" aria-label="Module 5: Take the Wheel"></button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main">
+    <!-- modules/*.html content is assembled here by build.sh -->
+<section class="module" id="module-1">
+
+  <!-- ============================================================
+       SCREEN 1 — The Problem
+       ============================================================ -->
+  <div class="module-header animate-in">
+    <div class="module-number">Module 1</div>
+    <h2 class="module-title">Your AI's Money-Saving Bodyguard</h2>
+    <p class="module-subtitle">What ccmux does and why it exists</p>
+  </div>
+
+  <div class="content-block animate-in">
+    <h3>The Problem</h3>
+    <p>
+      You use Claude — an AI assistant — through an
+      <span class="term" data-definition="Application Programming Interface: a standardized way for two programs to talk to each other over the network">API</span>.
+      Every request costs money, charged per
+      <span class="term" data-definition="A token is a chunk of text (roughly 3/4 of a word) that AI models use as their unit of reading and writing">token</span>.
+      Anthropic offers three models at wildly different price tiers, but your tooling sends everything to the same one.
+    </p>
+    <p>
+      "What's 2+2?" doesn't need a $15-per-million-token brain. But a complex multi-file refactor absolutely does.
+    </p>
+  </div>
+
+  <div class="pattern-cards animate-in">
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+      <div class="pattern-icon" style="background: var(--color-accent-light)">&#129504;</div>
+      <h4 class="pattern-title">
+        <span class="term" data-definition="Opus is Anthropic's most capable (and most expensive) AI model, designed for complex reasoning and difficult tasks">Opus</span> — $15/M tokens
+      </h4>
+      <p class="pattern-desc">The heavyweight. Complex reasoning, multi-file refactors, architectural decisions.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+      <div class="pattern-icon" style="background: var(--color-accent-light)">&#9881;&#65039;</div>
+      <h4 class="pattern-title">
+        <span class="term" data-definition="Sonnet is Anthropic's mid-tier AI model, balancing capability and cost for everyday coding tasks">Sonnet</span> — $3/M tokens
+      </h4>
+      <p class="pattern-desc">The workhorse. Day-to-day coding, writing tests, explaining code.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+      <div class="pattern-icon" style="background: var(--color-accent-light)">&#9889;</div>
+      <h4 class="pattern-title">
+        <span class="term" data-definition="Haiku is Anthropic's fastest and cheapest AI model, ideal for simple tasks like lookups and short answers">Haiku</span> — $0.80/M tokens
+      </h4>
+      <p class="pattern-desc">The speedster. Quick lookups, simple Q&amp;A, formatting tasks.</p>
+    </div>
+  </div>
+
+  <div class="callout callout-warn animate-in">
+    <div class="callout-icon">&#128184;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Cost Gap</strong>
+      <p>Opus is <strong>19x</strong> more expensive than Haiku. If even half your requests are simple, you're burning money on every one.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 — The Solution
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Solution</h3>
+    <p>
+      <strong>ccmux</strong> is a local
+      <span class="term" data-definition="A proxy is a middleman server that sits between your application and a destination, intercepting and optionally modifying traffic">proxy</span>
+      that sits between your
+      <span class="term" data-definition="Command-Line Interface: a text-based tool you run in a terminal, as opposed to a graphical application">CLI</span>
+      and Anthropic's API. It reads each request, estimates how complex it is, and picks the cheapest
+      <span class="term" data-definition="In AI, a model is a trained neural network that processes text. Different models vary in capability and cost">model</span>
+      that can handle it.
+    </p>
+    <p>
+      Think of it like an airport security checkpoint. It scans your luggage (reads the request metadata) without opening it (no body modification), then routes you to the right lane &mdash; economy or first class &mdash; based on what the scanner sees.
+    </p>
+  </div>
+
+  <div class="step-cards animate-in">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>You launch Claude normally</strong>
+        <p>ccmux starts a local
+          <span class="term" data-definition="HTTP (HyperText Transfer Protocol) is the standard protocol for sending data between a browser/client and a server">HTTP</span>
+          server and spawns your Claude CLI as a child process.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Intercept</strong>
+        <p>Your CLI sends its API call to ccmux instead of Anthropic, because ccmux swapped the destination address (more on this in Screen 3).</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Analyze</strong>
+        <p>ccmux reads the request headers and lightweight signals &mdash; system prompt length, conversation turns, tool count &mdash; to gauge complexity.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <strong>Pick a model</strong>
+        <p>Based on a rule set you control, ccmux selects Haiku, Sonnet, or Opus. Simple question? Haiku. Gnarly refactor? Opus.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <strong>Forward</strong>
+        <p>ccmux acts as a
+          <span class="term" data-definition="A reverse proxy accepts requests on behalf of a backend server and forwards them, hiding the backend's real address from the client">reverse proxy</span>:
+          it forwards the original request &mdash; byte-for-byte &mdash; to Anthropic with the chosen model, and streams the response back via
+          <span class="term" data-definition="Server-Sent Events: a protocol where the server pushes data to the client in a continuous stream, used by AI APIs to send tokens as they are generated">SSE</span>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 — The Env Var Trick (Code Translation)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Env Var Trick</h3>
+    <p>
+      How does ccmux redirect traffic without you changing a single line of code? It uses an
+      <span class="term" data-definition="An environment variable is a named value set outside your program that configures its behavior at runtime, like a setting dial the OS exposes">environment variable</span>.
+      When ccmux spawns your CLI, it overrides <code>ANTHROPIC_BASE_URL</code> to point at itself.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/lifecycle/wrapper.ts</span>
+      <pre><code><span class="code-keyword">export function</span> <span class="code-function">buildChildEnv</span>(
+  <span class="code-property">parentEnv</span>: <span class="code-keyword">NodeJS</span>.ProcessEnv,
+  <span class="code-property">port</span>: <span class="code-keyword">number</span>,
+  <span class="code-property">token</span>: <span class="code-keyword">string</span>,
+): <span class="code-keyword">NodeJS</span>.ProcessEnv {
+  <span class="code-keyword">const</span> <span class="code-property">baseUrl</span> = <span class="code-string">`http://127.0.0.1:${port}`</span>;
+  <span class="code-keyword">const</span> <span class="code-property">noProxy</span> = <span class="code-string">'127.0.0.1,localhost'</span>;
+  <span class="code-keyword">return</span> {
+    ...<span class="code-property">parentEnv</span>,
+    <span class="code-property">ANTHROPIC_BASE_URL</span>: <span class="code-property">baseUrl</span>,
+    <span class="code-property">NO_PROXY</span>: <span class="code-property">noProxy</span>,
+    <span class="code-property">no_proxy</span>: <span class="code-property">noProxy</span>,
+    <span class="code-property">NOPROXY</span>: <span class="code-property">noProxy</span>,
+    <span class="code-property">CCMUX_PROXY_TOKEN</span>: <span class="code-property">token</span>,
+  };
+}</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl">Define a function that builds the set of environment variables for the child process (your Claude CLI).</p>
+        <p class="tl">It takes your current environment, the port ccmux is listening on, and an internal auth token.</p>
+        <p class="tl">Build the address of our local proxy: <code>http://127.0.0.1:&lt;port&gt;</code> &mdash; this is just "localhost" with the specific port number.</p>
+        <p class="tl">Tell the OS to bypass any corporate or system-wide proxy for local traffic, so requests actually reach ccmux.</p>
+        <p class="tl">Copy <em>all</em> existing env vars with the spread operator, then override <code>ANTHROPIC_BASE_URL</code> to point to our proxy &mdash; <strong>this is the magic trick</strong> that redirects every API call without touching the client code.</p>
+        <p class="tl">Set three variants of the no-proxy variable (<code>NO_PROXY</code>, <code>no_proxy</code>, <code>NOPROXY</code>) because different
+          <span class="term" data-definition="Node.js is a JavaScript runtime that lets you run JavaScript outside the browser, commonly used for servers and CLI tools">Node.js</span>
+          HTTP libraries check different casing.</p>
+        <p class="tl">Pass an internal token so ccmux can verify the request actually came from the child process it spawned, not some random local connection.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 — Callout + What ccmux does NOT do
+       ============================================================ -->
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Interception Pattern</strong>
+      <p>This technique &mdash; changing where software sends its requests by swapping an environment variable &mdash; is used everywhere in software. Proxies, testing tools, and service meshes all work this way. It is one of the most powerful tricks in a developer's toolkit.</p>
+    </div>
+  </div>
+
+  <div class="content-block animate-in">
+    <h3>What ccmux Does NOT Do</h3>
+    <p>
+      ccmux is intentionally minimal. It makes three hard guarantees so you can trust it with production API traffic.
+    </p>
+  </div>
+
+  <div class="badge-list animate-in">
+    <div class="badge-item">
+      <code class="badge-code">Zero telemetry</code>
+      <span class="badge-desc">No outbound calls except to <code>api.anthropic.com</code>. Your data never leaves the expected path.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">No body modification</code>
+      <span class="badge-desc">Request and response bodies pass through byte-for-byte. ccmux only reads headers and lightweight signals.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">Auth passthrough</code>
+      <span class="badge-desc">Your Anthropic API key is forwarded as-is. ccmux never stores, logs, or inspects it.</span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 5 — Quiz
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Check Your Understanding</h3>
+    <p>These are scenario questions, not memorization. Think through each one before choosing.</p>
+  </div>
+
+  <div class="quiz-container animate-in" id="quiz-module1">
+
+    <!-- Question 1 -->
+    <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Exactly. A trivial question like this is a textbook Haiku job -- fast and 19x cheaper than Opus." data-explanation-wrong="Think about it: 'what time is it?' is about as simple as a question gets. There is no complex reasoning involved, so the cheapest model handles it fine.">
+      <h3 class="quiz-question">You ask Claude "what time is it?" &mdash; which model should ccmux route to?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Haiku &mdash; it is a simple question, use the cheapest model</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Sonnet &mdash; mid-tier is always the safe default</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Opus &mdash; you want the most accurate answer possible</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Correct. ccmux forwards your API key untouched -- it never stores, logs, or modifies authentication credentials." data-explanation-wrong="Remember the three guarantees: ccmux provides auth passthrough. Your API key is forwarded to Anthropic exactly as your client sent it. ccmux never touches auth.">
+      <h3 class="quiz-question">ccmux sits between your client and Anthropic. What happens to your API key?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>ccmux replaces it with its own key for the cheaper models</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>It is passed through unchanged &mdash; ccmux never touches auth</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>ccmux strips the key and uses anonymous access for Haiku</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="quiz-question-block" data-correct="option-c" data-explanation-right="Right. ccmux only reads lightweight signals (headers, token counts). The message body passes through byte-for-byte, untouched, whether the request succeeds or fails." data-explanation-wrong="Recall the airport metaphor: ccmux scans the luggage (reads headers) but never opens it (never modifies the body). Your message content passes through byte-for-byte regardless of what happens.">
+      <h3 class="quiz-question">A request to ccmux fails due to a network error. What happens to your message content?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>ccmux caches the message and retries with a cheaper model</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The message is logged locally for debugging</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Nothing &mdash; ccmux only reads signals, the body passes through byte-for-byte</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <button class="quiz-check-btn" onclick="checkQuiz('quiz-module1')">Check Answers</button>
+    <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module1')">Try Again</button>
+  </div>
+
+</section>
+<section class="module" id="module-2" style="background: var(--color-bg-warm)">
+  <div class="module-content">
+
+    <!-- ── MODULE HEADER ──────────────────────────────────────── -->
+    <div class="module-header animate-in">
+      <span class="module-number">02</span>
+      <h2 class="module-title">Meet the Cast</h2>
+      <p class="module-subtitle">The five actors that make routing decisions</p>
+    </div>
+
+    <!-- ── SCREEN 1: THE FIVE ACTORS ──────────────────────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">The Five Actors</h3>
+      <p class="animate-in">Think of ccmux as a film production crew. Every request that arrives is a new scene to shoot, and each crew member has exactly one job. Nobody steps on anyone else's role.</p>
+
+      <div class="icon-rows stagger-children">
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-actor-1)">&#127916;</div>
+          <div>
+            <strong>Proxy Server (<span class="term" data-definition="A fast, low-overhead Node.js web framework designed for high throughput. It uses a plugin architecture and schema-based validation to keep request handling efficient.">Fastify</span>)</strong>
+            <p>The director -- receives every request, coordinates the pipeline, forwards the result. This is the <span class="term" data-definition="A server that accepts client requests and forwards them to another server, acting as an intermediary. A reverse proxy sits in front of backend services and routes traffic on behalf of the client.">reverse proxy</span> that Claude Code talks to instead of Anthropic directly.</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-actor-2)">&#128270;</div>
+          <div>
+            <strong>Signal Extractor</strong>
+            <p>The script supervisor -- reads every incoming request and extracts <span class="term" data-definition="A measurable property extracted from a request that hints at its complexity or intent. Examples: token count, presence of tool calls, conversation length, plan-mode flag.">signals</span> like token count, tool usage, frustration markers, and plan-mode flags. Takes notes on every take so the rest of the crew can make informed decisions.</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-actor-3)">&#128203;</div>
+          <div>
+            <strong><span class="term" data-definition="A rule evaluation system that takes extracted signals and matches them against an ordered list of YAML-defined rules. It decides which model should handle a request based on deterministic conditions.">Policy Engine</span></strong>
+            <p>The casting director -- evaluates YAML rules in order using <span class="term" data-definition="An evaluation strategy where rules are checked top-to-bottom and the first rule whose conditions match is used. No further rules are evaluated after a match.">first-match-wins</span> logic. When a rule matches the extracted signals, it picks the model. No drama, no debate.</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-actor-4)">&#127919;</div>
+          <div>
+            <strong><span class="term" data-definition="A component that uses heuristic scoring (and optionally a lightweight LLM call) to estimate request complexity when no deterministic policy rule matches.">Classifier</span></strong>
+            <p>The talent scout -- makes judgment calls when no rule matches. Uses a <span class="term" data-definition="A practical problem-solving approach that uses rules of thumb, educated guesses, or simplified models rather than guaranteed-optimal algorithms. Good enough, fast enough.">heuristic</span> scoring algorithm and, as a fallback, a quick Haiku-based classification.</p>
+          </div>
+        </div>
+        <div class="icon-row animate-in">
+          <div class="icon-circle" style="background: var(--color-actor-5)">&#128221;</div>
+          <div>
+            <strong>Decision Logger</strong>
+            <p>The editor -- records every routing decision to a daily <span class="term" data-definition="JSON Lines format: a text file where each line is a valid JSON object. Easy to append (just add a line), easy to parse (read line by line), and easy to stream.">JSONL</span> log file with structured JSON via <span class="term" data-definition="A extremely fast, low-overhead Node.js logging library that outputs structured JSON. It avoids expensive serialization by using a streamlined write path.">pino</span>. Everything goes on the record for later review.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 2: WHERE THEY LIVE ──────────────────────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">Where They Live</h3>
+      <p class="animate-in">Each actor gets its own folder. One folder, one responsibility, zero overlap.</p>
+
+      <div class="file-tree animate-in">
+        <div class="ft-folder">
+          <span class="ft-name">src/</span>
+          <div class="ft-children">
+            <div class="ft-folder">
+              <span class="ft-name">proxy/</span>
+              <span class="ft-desc">The director -- <span class="term" data-definition="A program that listens for incoming network requests on a port and responds to them. In ccmux, the Fastify instance is the HTTP server that intercepts calls meant for Anthropic's API.">HTTP server</span>, routing handler, health check</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">signals/</span>
+              <span class="ft-desc">Script supervisor -- extracts plan mode, tokens (via <span class="term" data-definition="A tokenizer library that splits text into tokens the same way OpenAI and Anthropic models do. Used to estimate request size without calling the API.">tiktoken</span>), tools, frustration</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">policy/</span>
+              <span class="ft-desc">Casting director -- YAML rules, first-match-wins evaluator, recipes</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">classifier/</span>
+              <span class="ft-desc">Talent scout -- heuristic scorer + Haiku-based backup classifier</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">logging/</span>
+              <span class="ft-desc">Editor -- decision logs, privacy redaction, structured JSON</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">cli/</span>
+              <span class="ft-desc">Stage manager -- parses command-line args, launches the server</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">config/</span>
+              <span class="ft-desc">Props department -- loads YAML config, validates schemas, watches for changes via <span class="term" data-definition="A Node.js library that watches the filesystem for changes efficiently. It handles cross-platform edge cases that the native fs.watch API misses.">chokidar</span> for <span class="term" data-definition="Reloading configuration or code while the application is still running, without restarting the process. ccmux watches its YAML policy file and applies changes on the fly.">hot-reload</span></span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">lifecycle/</span>
+              <span class="ft-desc">Safety crew -- graceful shutdown, <span class="term" data-definition="A conversation context that persists across multiple API calls. ccmux tracks sessions to apply consistent routing for multi-turn conversations.">session</span> cleanup, signal handling</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">dashboard/</span>
+              <span class="ft-desc">Screening room -- real-time stats, cost tracking, decision history</span>
+            </div>
+            <div class="ft-folder">
+              <span class="ft-name">types/</span>
+              <span class="ft-desc">Wardrobe -- shared TypeScript interfaces and type definitions</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 3: A DAY ON SET — GROUP CHAT ────────────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">A Day on Set</h3>
+      <p class="animate-in">Watch the actors coordinate a real routing decision. A POST request arrives and the crew springs into action.</p>
+
+      <div class="chat-window animate-in" id="chat-module2">
+        <div class="chat-messages">
+          <div class="chat-message" data-msg="0" data-sender="proxy" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-1)">P</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-1)">Proxy Server</span>
+              <p>Incoming! POST /v1/messages just landed. Let me parse this...</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="1" data-sender="proxy" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-1)">P</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-1)">Proxy Server</span>
+              <p>Hey Signals, what can you tell me about this request?</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="2" data-sender="signals" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-2)">S</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-2)">Signal Extractor</span>
+              <p>Short conversation, no tools, about 800 tokens. Looks simple. No plan-mode flag, no frustration markers.</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="3" data-sender="proxy" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-1)">P</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-1)">Proxy Server</span>
+              <p>Policy, got a match for these signals?</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="4" data-sender="policy" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-3)">R</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-3)">Policy Engine</span>
+              <p>Yep! Rule "trivial-to-haiku" matched on line 12. Send it to Haiku.</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="5" data-sender="proxy" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-1)">P</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-1)">Proxy Server</span>
+              <p>Logger, record this -- Haiku, rule match, confidence 1.0.</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="6" data-sender="logger" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-5)">L</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-5)">Decision Logger</span>
+              <p>Recorded. Decision appended to today's log file. Cost estimate: $0.0003.</p>
+            </div>
+          </div>
+          <div class="chat-message" data-msg="7" data-sender="proxy" style="display:none">
+            <div class="chat-avatar" style="background: var(--color-actor-1)">P</div>
+            <div class="chat-bubble">
+              <span class="chat-sender" style="color: var(--color-actor-1)">Proxy Server</span>
+              <p>Forwarding to Anthropic with model=haiku. Done in 2ms!</p>
+            </div>
+          </div>
+        </div>
+        <div class="chat-typing" style="display:none">
+          <div class="chat-avatar" id="chat-module2-typing-avatar" style="background: var(--color-actor-1)">?</div>
+          <div class="chat-typing-dots">
+            <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+          </div>
+        </div>
+        <div class="chat-controls">
+          <button class="btn chat-next-btn">Next Message</button>
+          <button class="btn chat-all-btn">Play All</button>
+          <button class="btn chat-reset-btn">Replay</button>
+          <span class="chat-progress"></span>
+        </div>
+      </div>
+
+      <div class="callout callout-accent animate-in">
+        <div class="callout-icon">&#128172;</div>
+        <div class="callout-content">
+          <strong class="callout-title">Notice the pattern</strong>
+          <p>The Proxy Server is the only actor that talks to the outside world. Signals, Policy, and Logger never see the raw HTTP request -- they only receive the data the Proxy hands them. The Classifier was not even needed this time because Policy found a match.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 4: THE DIRECTOR'S SETUP — CODE TRANSLATION ──── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">The Director's Setup</h3>
+      <p class="animate-in">Here is how the Proxy Server registers its three routes. This is the entry point where every request first lands.</p>
+
+      <div class="translation-block animate-in">
+        <div class="translation-code">
+          <span class="translation-label">src/proxy/server.ts</span>
+<code><span class="code-line"><span class="code-keyword">function</span> <span class="code-function">registerRoutes</span>(app: FastifyInstance, opts: ProxyServerOptions): <span class="code-keyword">void</span> {</span>
+<span class="code-line">  <span class="code-keyword">const</span> hot = <span class="code-function">makeHotPathHandler</span>({ <span class="code-property">logger</span>: opts.logger });</span>
+<span class="code-line">  <span class="code-keyword">const</span> through = <span class="code-function">passThrough</span>({ <span class="code-property">logger</span>: opts.logger });</span>
+<span class="code-line">  <span class="code-keyword">const</span> health = <span class="code-function">makeHealthHandler</span>({</span>
+<span class="code-line">    <span class="code-property">startTimeMs</span>: Date.now(),</span>
+<span class="code-line">    <span class="code-property">version</span>: <span class="code-string">'0.0.0'</span>,</span>
+<span class="code-line">    <span class="code-property">mode</span>: <span class="code-string">'passthrough'</span>,</span>
+<span class="code-line">  });</span>
+<span class="code-line">  app.post(<span class="code-string">'/v1/messages'</span>, hot);</span>
+<span class="code-line">  app.route({ <span class="code-property">method</span>: [<span class="code-string">'GET'</span>, <span class="code-string">'POST'</span>, <span class="code-string">'PUT'</span>, <span class="code-string">'PATCH'</span>, <span class="code-string">'DELETE'</span>, <span class="code-string">'OPTIONS'</span>, <span class="code-string">'HEAD'</span>], <span class="code-property">url</span>: <span class="code-string">'/v1/*'</span>, <span class="code-property">handler</span>: through });</span>
+<span class="code-line">  app.get(<span class="code-string">'/healthz'</span>, health);</span>
+<span class="code-line">}</span></code>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">Plain English</span>
+          <div class="translation-lines">
+            <div class="tl">Define a function that wires up all the server's URL routes.</div>
+            <div class="tl">Create the smart routing handler for the main AI endpoint.</div>
+            <div class="tl">Create a pass-through handler that forwards everything else unchanged.</div>
+            <div class="tl">Create a health check endpoint that reports uptime, version, and current mode.</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">When a POST hits <strong>/v1/messages</strong> -- the main AI endpoint -- use the smart router.</div>
+            <div class="tl">All other API paths under /v1/ get forwarded to Anthropic unchanged.</div>
+            <div class="tl">The <strong>/healthz</strong> endpoint lets monitoring tools check if ccmux is alive.</div>
+            <div class="tl">&nbsp;</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout callout-info animate-in">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-content">
+          <strong class="callout-title">Only one route is "smart"</strong>
+          <p>The entire signal extraction, policy evaluation, and classification pipeline only runs for <code>POST /v1/messages</code>. Every other endpoint passes straight through -- ccmux does not interfere with model listings, token counting, or any other API call. The <span class="term" data-definition="A cryptographic hash-based message authentication code. ccmux uses HMAC-SHA256 to sign routing decisions, ensuring log entries haven't been tampered with after the fact.">HMAC</span>-signed decision log only records the smart-routed calls.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 5: CALLOUT + QUIZ ───────────────────────────── -->
+    <div class="screen">
+      <div class="callout callout-info animate-in">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-content">
+          <strong class="callout-title">Separation of Concerns</strong>
+          <p>Each actor does exactly one thing well. The proxy does not know how to score complexity. The classifier does not know how to forward HTTP requests. This pattern -- giving each piece one clear job -- is one of the most important ideas in software engineering.</p>
+        </div>
+      </div>
+
+      <div class="dnd-container animate-in" id="dnd-module2">
+        <p class="screen-heading">Match each actor to its job:</p>
+        <div class="dnd-chips">
+          <div class="dnd-chip" draggable="true" data-answer="proxy">Proxy Server</div>
+          <div class="dnd-chip" draggable="true" data-answer="signals">Signal Extractor</div>
+          <div class="dnd-chip" draggable="true" data-answer="policy">Policy Engine</div>
+          <div class="dnd-chip" draggable="true" data-answer="classifier">Classifier</div>
+          <div class="dnd-chip" draggable="true" data-answer="logger">Decision Logger</div>
+        </div>
+        <div class="dnd-zones">
+          <div class="dnd-zone" data-correct="signals">
+            <p class="dnd-zone-label">Counts tokens, detects frustration, checks for plan mode</p>
+            <div class="dnd-zone-target">Drop here</div>
+          </div>
+          <div class="dnd-zone" data-correct="policy">
+            <p class="dnd-zone-label">Evaluates YAML rules in order, first match wins</p>
+            <div class="dnd-zone-target">Drop here</div>
+          </div>
+          <div class="dnd-zone" data-correct="classifier">
+            <p class="dnd-zone-label">Scores request complexity when no rule matches</p>
+            <div class="dnd-zone-target">Drop here</div>
+          </div>
+          <div class="dnd-zone" data-correct="proxy">
+            <p class="dnd-zone-label">Receives requests, coordinates everything, forwards the result</p>
+            <div class="dnd-zone-target">Drop here</div>
+          </div>
+          <div class="dnd-zone" data-correct="logger">
+            <p class="dnd-zone-label">Records every routing decision to a daily log file</p>
+            <div class="dnd-zone-target">Drop here</div>
+          </div>
+        </div>
+        <div style="margin-top: var(--space-4); display: flex; gap: var(--space-3);">
+          <button class="btn btn-primary" onclick="checkDnD('dnd-module2')">Check Matches</button>
+          <button class="btn" onclick="resetDnD('dnd-module2')">Reset</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+<section class="module" id="module-3">
+
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
+  <div class="module-header animate-in">
+    <div class="module-number">Module 3</div>
+    <h2 class="module-title">The Decision Pipeline</h2>
+    <p class="module-subtitle">How ccmux decides which model gets your request</p>
+  </div>
+
+  <div class="content-block animate-in">
+    <p>
+      Every request that reaches ccmux passes through a sorting facility before it ships. Each package (request)
+      gets scanned, checked against routing rules, weighed by a classifier if the rules have no opinion, and
+      sent down the right conveyor belt to Haiku, Sonnet, or Opus.
+    </p>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 1 — The Five Stages
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Five Stages</h3>
+    <p>
+      Every <code>POST /v1/messages</code> request passes through these five stages before reaching Anthropic.
+      The entire <span class="term" data-definition="A pipeline is a sequence of processing steps where the output of one stage feeds into the next, like an assembly line">pipeline</span>
+      runs synchronously and adds less than 5ms of latency.
+    </p>
+  </div>
+
+  <div class="flow-steps animate-in">
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <p>Parse request</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <p>Extract signals</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <p>Evaluate rules</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <p>Classify (fallback)</p>
+    </div>
+    <div class="flow-arrow">&#8594;</div>
+    <div class="flow-step">
+      <div class="flow-step-num">5</div>
+      <p>Forward + log</p>
+    </div>
+  </div>
+
+  <div class="callout callout-info animate-in">
+    <div class="callout-icon">&#128230;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Sorting Facility Metaphor</strong>
+      <p>Think of this like a package sorting facility. Stage 1 reads the label. Stage 2 scans the contents. Stage 3 checks automated routing rules. Stage 4 asks a human (the classifier) if no rule covers it. Stage 5 puts it on the right truck.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 — What Gets Scanned (Signal Badges)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>What Gets Scanned</h3>
+    <p>
+      In stage 2, the proxy extracts a set of
+      <span class="term" data-definition="A signal is a single measurable property of the request that helps determine its complexity, like token count or tool usage">signals</span>
+      from each request. These are the data points the routing engine uses to make its decision.
+    </p>
+  </div>
+
+  <div class="badge-list animate-in">
+    <div class="badge-item">
+      <code class="badge-code">planMode</code>
+      <span class="badge-desc">Is the AI in <span class="term" data-definition="Plan mode is a state where the AI outlines an approach before executing, typically requiring more capable reasoning">plan mode</span>? Detected from system prompt or headers.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">estInputTokens</code>
+      <span class="badge-desc">Approximate input size, estimated by <span class="term" data-definition="tiktoken is a fast tokenizer library that estimates how many tokens a piece of text will consume, without calling the AI API">tiktoken</span>.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">toolUseCount</code>
+      <span class="badge-desc">How many <span class="term" data-definition="Tool use is when the AI invokes external capabilities like file editing, web search, or running commands during a conversation">tool use</span> invocations the AI has made so far.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">messageCount</code>
+      <span class="badge-desc">How deep into the conversation we are &mdash; more turns often means more complex context.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">frustration</code>
+      <span class="badge-desc"><span class="term" data-definition="Frustration detection identifies repeated user corrections like &quot;that is wrong&quot; or &quot;try again,&quot; signaling the current model may be insufficient">Frustration detection</span> &mdash; catches phrases like &ldquo;that is wrong&rdquo; or &ldquo;try again.&rdquo;</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">retryCount</code>
+      <span class="badge-desc">How many times this exact request has been <span class="term" data-definition="A retry occurs when the same request is sent again, usually after a failure or unsatisfactory response">retried</span>.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">fileRefCount</code>
+      <span class="badge-desc">Number of file paths mentioned in the conversation &mdash; more files usually means a bigger task.</span>
+    </div>
+  </div>
+
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-content">
+      <strong class="callout-title">Graceful Degradation</strong>
+      <p>Each signal extractor is wrapped in try/catch. If one fails (say, <span class="term" data-definition="A token is a chunk of text (roughly 3/4 of a word) that AI models use as their unit of reading and writing">token</span> counting hits a weird edge case), that one signal gets a default value &mdash; the rest still work fine. One broken sensor does not crash the whole system.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 — Watch It Happen (Data Flow Animation)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Watch It Happen</h3>
+    <p>
+      Step through a real request as it flows through the pipeline. Each actor lights up when it handles
+      the package, and a packet travels between them.
+    </p>
+  </div>
+
+  <div class="flow-animation animate-in" data-steps='[
+    {"highlight":"flow-client","label":"Claude CLI sends POST /v1/messages to the local proxy"},
+    {"highlight":"flow-proxy","label":"Proxy receives the request and parses the JSON body","packet":true,"from":"client","to":"proxy"},
+    {"highlight":"flow-signals","label":"Signal extractor scans for tokens, tools, plan mode, frustration","packet":true,"from":"proxy","to":"signals"},
+    {"highlight":"flow-policy","label":"Policy engine checks YAML rules top-to-bottom (first match wins)","packet":true,"from":"signals","to":"policy"},
+    {"highlight":"flow-classifier","label":"No rule matched - classifier scores complexity: score 1.8 = Haiku","packet":true,"from":"policy","to":"classifier"},
+    {"highlight":"flow-proxy","label":"Model chosen! Proxy splices model=haiku into the request","packet":true,"from":"classifier","to":"proxy"},
+    {"highlight":"flow-anthropic","label":"Request forwarded to api.anthropic.com with the chosen model","packet":true,"from":"proxy","to":"anthropic"},
+    {"highlight":"flow-proxy","label":"Response streams back through the proxy, byte-for-byte unchanged"}
+  ]'>
+    <div class="flow-actors">
+      <div class="flow-actor" id="flow-client">
+        <div class="flow-actor-icon" style="background: var(--color-accent-light); border-color: var(--color-accent)">&#128241;</div>
+        <span>Claude CLI</span>
+      </div>
+      <div class="flow-actor" id="flow-proxy">
+        <div class="flow-actor-icon" style="background: #FDEEE9; border-color: var(--color-actor-1)">&#127916;</div>
+        <span>Proxy</span>
+      </div>
+      <div class="flow-actor" id="flow-signals">
+        <div class="flow-actor-icon" style="background: #E4F2F7; border-color: var(--color-actor-2)">&#128269;</div>
+        <span>Signals</span>
+      </div>
+      <div class="flow-actor" id="flow-policy">
+        <div class="flow-actor-icon" style="background: #EDE8F5; border-color: var(--color-actor-3)">&#128203;</div>
+        <span>Policy</span>
+      </div>
+      <div class="flow-actor" id="flow-classifier">
+        <div class="flow-actor-icon" style="background: #FDF5E0; border-color: var(--color-actor-4)">&#127919;</div>
+        <span>Classifier</span>
+      </div>
+      <div class="flow-actor" id="flow-anthropic">
+        <div class="flow-actor-icon" style="background: #E8F5EE; border-color: var(--color-actor-5)">&#9729;&#65039;</div>
+        <span>Anthropic</span>
+      </div>
+    </div>
+    <div class="flow-packet"></div>
+    <div class="flow-step-label">Click "Next Step" to trace a request through the pipeline</div>
+    <div class="flow-controls">
+      <button class="btn btn-primary flow-next-btn">Next Step</button>
+      <button class="btn flow-reset-btn">Restart</button>
+      <span class="flow-progress"></span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 — Reading the Scanner Output (Code Translation)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Reading the Scanner Output</h3>
+    <p>
+      This is the actual return value from the signal extractor. Each <code>safe()</code> wrapper means
+      &ldquo;try this, but if it crashes, use the fallback value instead.&rdquo; The result is frozen so
+      nothing downstream can accidentally mutate it.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/signals/extract.ts:134-149</span>
+      <pre><code><span class="code-keyword">return</span> <span class="code-function">Object.freeze</span>({
+  <span class="code-property">planMode</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'plan-mode'</span>, <span class="code-keyword">null</span>, () <span class="code-operator">=></span>
+    <span class="code-function">detectPlanMode</span>(<span class="code-property">body</span>?.<span class="code-property">system</span>)),
+  <span class="code-property">messageCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'messageCount'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-property">messages</span>.<span class="code-property">length</span>),
+  <span class="code-property">tools</span>: <span class="code-property">toolNames</span>,
+  <span class="code-property">toolUseCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'tool-use-count'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">countToolUse</span>(<span class="code-property">messages</span>)),
+  <span class="code-property">estInputTokens</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'tokens'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">estimateInputTokens</span>(<span class="code-property">body</span>?.<span class="code-property">system</span>, <span class="code-property">messages</span>)),
+  <span class="code-property">fileRefCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'file-refs'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">countFileRefs</span>(<span class="code-property">messages</span>)),
+  <span class="code-property">retryCount</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'retry'</span>, <span class="code-number">0</span>, () <span class="code-operator">=></span>
+    <span class="code-function">retryCount</span>(<span class="code-property">hash</span>, <span class="code-property">sessionContext</span>)),
+  <span class="code-property">frustration</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'frustration'</span>, <span class="code-keyword">null</span>, () <span class="code-operator">=></span>
+    <span class="code-function">detectFrustration</span>(<span class="code-property">messages</span>)),
+  <span class="code-property">explicitModel</span>: <span class="code-function">safe</span>(<span class="code-property">logger</span>, <span class="code-string">'explicit-model'</span>, <span class="code-keyword">null</span>, () <span class="code-operator">=></span>
+    <span class="code-function">explicitModelOf</span>(<span class="code-property">body</span>)),
+});</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl"><strong>Lock this object</strong> so nothing can change it after creation. Immutability prevents downstream code from accidentally corrupting the signals.</p>
+        <p class="tl"><strong>planMode:</strong> Check if the AI is in planning mode by reading the system prompt. Falls back to <code>null</code> (unknown) if detection fails.</p>
+        <p class="tl"><strong>messageCount:</strong> Count how many messages are in the conversation. Falls back to <code>0</code> if the array is malformed.</p>
+        <p class="tl"><strong>tools:</strong> List all the tool names available in this request. No <code>safe()</code> needed &mdash; already extracted above.</p>
+        <p class="tl"><strong>toolUseCount:</strong> Scan <span class="term" data-definition="A content block is a discrete unit within a message, such as text, tool invocation, or tool result. Messages can contain multiple content blocks">content blocks</span> to count how many times the AI has actually invoked tools.</p>
+        <p class="tl"><strong>estInputTokens:</strong> Estimate token count using tiktoken. This avoids a round-trip to the API just to measure size.</p>
+        <p class="tl"><strong>fileRefCount:</strong> Regex-scan messages for file paths. More files referenced usually correlates with higher complexity.</p>
+        <p class="tl"><strong>retryCount:</strong> Hash the request and check the <span class="term" data-definition="A session is a logical grouping of related requests, tracked by ccmux to maintain context like retry counts and escalation history">session</span> context to see if this exact request has been sent before.</p>
+        <p class="tl"><strong>frustration:</strong> Look for correction patterns in user messages. Falls back to <code>null</code> rather than <code>0</code> because &ldquo;no data&rdquo; differs from &ldquo;no frustration.&rdquo;</p>
+        <p class="tl"><strong>explicitModel:</strong> Check if the user explicitly requested a specific model (via <span class="term" data-definition="HMAC (Hash-based Message Authentication Code) is a cryptographic technique used to verify that a message has not been tampered with">HMAC</span>-signed header or body field). If set, it overrides all other routing.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-info animate-in">
+    <div class="callout-icon">&#9201;</div>
+    <div class="callout-content">
+      <strong class="callout-title">TTL and Signal Freshness</strong>
+      <p>Signals like <code>retryCount</code> and <code>frustration</code> rely on session state that has a <span class="term" data-definition="TTL (Time To Live) is how long a cached value remains valid before it expires and must be recalculated">TTL</span>. If the user walks away for 30 minutes, the session expires and those signals reset to defaults. This prevents stale frustration from a morning session from escalating an afternoon request to Opus.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 5 — Quiz
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Check Your Understanding</h3>
+    <p>Scenario-based questions. Think through the pipeline stages before choosing.</p>
+  </div>
+
+  <div class="quiz-container animate-in" id="quiz-module3">
+
+    <!-- Question 1 -->
+    <div class="quiz-question-block" data-correct="option-a" data-explanation-right="The policy engine evaluates rules top-to-bottom. A trivial rule matching low tokens + zero tools + no plan mode would fire first and route straight to Haiku, skipping the classifier entirely." data-explanation-wrong="Remember: stage 3 (policy rules) runs before stage 4 (classifier). The classifier is only a fallback. With such clear signals -- 200 tokens, 0 tools, no plan mode -- a well-configured rule set handles this without needing the classifier at all.">
+      <h3 class="quiz-question">A user sends a one-line question with no tools. The signal extractor finds: 200 tokens, 0 tools, no plan mode. What happens next?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Policy evaluates rules &mdash; if a trivial-to-haiku rule matches, it picks Haiku immediately</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The classifier scores complexity first, then policy decides</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>All requests go through both policy and classifier before a model is chosen</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Frustration means the user is correcting the AI repeatedly, which suggests the current (cheaper) model cannot handle the task. The pipeline escalates to a more capable model so the user gets a better answer." data-explanation-wrong="Frustration detection exists specifically to catch cases where a cheaper model is failing the user. Repeated corrections like &ldquo;that is wrong&rdquo; or &ldquo;try again&rdquo; trigger escalation to a more capable (and more expensive) model. It would not make sense to stay on the same model or downgrade.">
+      <h3 class="quiz-question">The frustration signal fires. What does this probably mean for model selection?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Switch to the cheapest model &mdash; no point spending more on a frustrated user</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Escalate to a more capable model &mdash; the cheaper one was not handling it well</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Keep the same model but increase the token limit</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="quiz-question-block" data-correct="option-c" data-explanation-right="Each extractor is wrapped in safe() with its own try/catch and fallback value. If token counting crashes, estInputTokens defaults to 0 while every other signal -- plan mode, tool count, frustration -- still works normally." data-explanation-wrong="Look at the code translation again: every signal uses safe(logger, name, fallback, fn). That wrapper catches any error in fn and returns the fallback value. The extractors are independent -- one failure does not affect the others. This is the &ldquo;graceful degradation&rdquo; principle in action.">
+      <h3 class="quiz-question">The token counting extractor crashes on a weird input. What happens to the rest of the signals?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The entire signal extraction fails and the request is forwarded with no routing</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The request is rejected with a 500 error</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Everything else works fine &mdash; each extractor fails independently with a safe fallback</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 4 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="The <span class=&quot;term&quot; data-definition=&quot;abstain means the classifier explicitly declines to make a decision, deferring to a default model rather than guessing&quot;>abstain</span> concept applies when neither rules nor classifier have enough confidence. But here the user explicitly requested a model, so explicitModel is set and overrides everything -- rules, classifier, and all." data-explanation-wrong="The explicitModel signal is checked before rules or classifier even run. When a user explicitly requests a specific model (via signed header), that preference takes absolute priority. The pipeline respects the human override -- no rule or classifier can overrule it.">
+      <h3 class="quiz-question">A user sets an explicit model override to Opus. The policy rules say this request should go to Haiku. What wins?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Policy rules win &mdash; they are evaluated first</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The explicit override wins &mdash; user intent always takes priority</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The classifier breaks the tie between the two conflicting signals</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <button class="quiz-check-btn" onclick="checkQuiz('quiz-module3')">Check Answers</button>
+    <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module3')">Try Again</button>
+  </div>
+
+</section><section class="module" id="module-4" style="background: var(--color-bg-warm)">
+
+  <!-- ============================================================
+       SCREEN 1 — The Rule Book
+       ============================================================ -->
+  <div class="module-header animate-in">
+    <div class="module-number">Module 4</div>
+    <h2 class="module-title">The Smart Parts</h2>
+    <p class="module-subtitle">Rules, scoring, and how ccmux actually picks a model</p>
+  </div>
+
+  <div class="content-block animate-in">
+    <h3>The Rule Book</h3>
+    <p>
+      Think of ccmux as a wine
+      <span class="term" data-definition="A sommelier is a trained wine professional who selects the right wine for each guest and occasion based on context clues and expertise">sommelier</span>.
+      It examines the occasion (request signals), consults the wine list (your
+      <span class="term" data-definition="YAML (YAML Ain't Markup Language) is a human-readable data format used for configuration files, using indentation to show structure">YAML</span>
+      policy rules), and picks the right bottle. Here is the actual rule book from the
+      <code>balanced</code> recipe.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/policy/recipes/balanced.yaml</span>
+      <pre><code><span class="code-property">rules</span>:
+  <span class="code-comment"># Plan mode deserves Opus.</span>
+  - <span class="code-property">id</span>: <span class="code-string">plan-to-opus</span>
+    <span class="code-property">when</span>: { <span class="code-property">planMode</span>: <span class="code-keyword">true</span> }
+    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">opus</span> }
+
+  <span class="code-comment"># Trivial turns: short, no tools, small context.</span>
+  - <span class="code-property">id</span>: <span class="code-string">trivial-to-haiku</span>
+    <span class="code-property">when</span>:
+      <span class="code-property">all</span>:
+        - { <span class="code-property">messageCount</span>: { <span class="code-operator">lt</span>: <span class="code-number">5</span> } }
+        - { <span class="code-property">toolUseCount</span>: { <span class="code-operator">eq</span>: <span class="code-number">0</span> } }
+        - { <span class="code-property">estInputTokens</span>: { <span class="code-operator">lt</span>: <span class="code-number">2000</span> } }
+    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">haiku</span> }
+
+  <span class="code-comment"># Retries suggest the first tier couldn't cope.</span>
+  - <span class="code-property">id</span>: <span class="code-string">retry-escalate</span>
+    <span class="code-property">when</span>: { <span class="code-property">retryCount</span>: { <span class="code-operator">gte</span>: <span class="code-number">2</span> } }
+    <span class="code-property">then</span>: { <span class="code-property">escalate</span>: <span class="code-number">1</span> }
+
+  <span class="code-comment"># Frustration signal -> bump a tier.</span>
+  - <span class="code-property">id</span>: <span class="code-string">frustration-escalate</span>
+    <span class="code-property">when</span>: { <span class="code-property">frustration</span>: <span class="code-keyword">true</span> }
+    <span class="code-property">then</span>: { <span class="code-property">escalate</span>: <span class="code-number">1</span> }
+</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl">Here are the routing rules, checked top to bottom...</p>
+        <p class="tl"><strong>Rule 1:</strong> If the AI is in planning mode, always use Opus (the best model).</p>
+        <p class="tl"><strong>Rule 2:</strong> If ALL of these are true &mdash; short conversation, no tools used, small input &mdash; use Haiku (cheapest).</p>
+        <p class="tl"><strong>Rule 3:</strong> If this request has been retried 2+ times, bump up one tier (the current model is struggling).</p>
+        <p class="tl"><strong>Rule 4:</strong> If the user sounds frustrated, bump up one tier.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#127863;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Sommelier Analogy</strong>
+      <p>
+        Rules are the wine list &mdash; explicit pairings the sommelier memorized. "Steak? Cabernet." "Fish? Sauvignon Blanc."
+        Written in a
+        <span class="term" data-definition="Domain-Specific Language: a small, purpose-built language designed for one task (here, writing routing rules) rather than general programming">DSL</span>
+        anyone on your team can read and edit.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 — How Rules Compose
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>How Rules Compose</h3>
+    <p>
+      Each rule's <code>when</code> clause uses
+      <span class="term" data-definition="Composition is combining simple conditions into complex ones using logical operators (all, any, not) like building blocks">composition</span>
+      to combine simple
+      <span class="term" data-definition="A condition is a single true/false check against a request signal, like 'is the token count under 2000?'">conditions</span>
+      into complex ones. Three building blocks cover every case.
+    </p>
+  </div>
+
+  <div class="step-cards animate-in">
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm)">ALL</div>
+      <div class="step-body">
+        <strong>Every condition must be true</strong>
+        <p>Like a checklist &mdash; all boxes must be checked. Used for the "trivial" rule: short AND no tools AND small input.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm)">ANY</div>
+      <div class="step-body">
+        <strong>At least one condition must be true</strong>
+        <p>Like a multiple-choice question &mdash; any correct answer works.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm)">NOT</div>
+      <div class="step-body">
+        <strong>The condition must be false</strong>
+        <p>Like a bouncer with an exclusion list &mdash; "anyone EXCEPT VIPs."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-warn animate-in">
+    <div class="callout-icon">&#9888;&#65039;</div>
+    <div class="callout-content">
+      <strong class="callout-title">First Match Wins</strong>
+      <p>
+        Rules are checked top-to-bottom. The FIRST rule that matches wins &mdash; later rules are never evaluated.
+        If NO rule matches, the engine says "abstain" and the
+        <span class="term" data-definition="A heuristic is a practical shortcut or rule of thumb that gives a good-enough answer without exhaustive analysis">heuristic</span>
+        classifier takes over.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 — The Scoring Machine
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Scoring Machine</h3>
+    <p>
+      When no rule matches, the sommelier switches from the wine list to their trained palate &mdash; the
+      <span class="term" data-definition="A heuristic is a practical shortcut or rule of thumb that gives a good-enough answer without exhaustive analysis">heuristic</span>
+      scorer. It examines five signals and assigns points to produce a
+      <span class="term" data-definition="A confidence score is a numeric value representing how certain the system is about a classification, used to pick between competing recommendations">confidence score</span>.
+    </p>
+  </div>
+
+  <div class="pattern-cards animate-in">
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+      <div class="pattern-icon" style="background: #E4F2F7">&#128207;</div>
+      <h4 class="pattern-title">Token Count</h4>
+      <p class="pattern-desc">Under 500 &rarr; 0 pts. 500-2k &rarr; 1 pt. 2k-8k &rarr; 2 pts. Over 8k &rarr; 3 pts.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+      <div class="pattern-icon" style="background: #EDE8F5">&#128295;</div>
+      <h4 class="pattern-title">Tool Breadth</h4>
+      <p class="pattern-desc">0.5 pts per unique tool, capped at 3 pts. More tools = more complex task.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+      <div class="pattern-icon" style="background: #FDF5E0">&#128221;</div>
+      <h4 class="pattern-title">Code Fences</h4>
+      <p class="pattern-desc">0.3 pts per code block, capped at 2 pts. Code in the conversation = technical work.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+      <div class="pattern-icon" style="background: #FDEEE9">&#128194;</div>
+      <h4 class="pattern-title">File References</h4>
+      <p class="pattern-desc">0.4 pts per file path, capped at 2 pts. File paths suggest multi-file work.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-5)">
+      <div class="pattern-icon" style="background: #E8F5EE">&#128172;</div>
+      <h4 class="pattern-title">Phrasing</h4>
+      <p class="pattern-desc">Imperative verbs like "write" or "build" &rarr; +1 pt. Questions &rarr; -1 pt.</p>
+    </div>
+  </div>
+
+  <div class="content-block animate-in">
+    <p>
+      The points are summed and mapped to a
+      <span class="term" data-definition="A band is a numeric range that maps to a specific outcome — here, score ranges that map to model tiers (Haiku, Sonnet, Opus)">band</span>
+      &mdash; like wine price tiers on the list.
+    </p>
+  </div>
+
+  <div class="step-cards animate-in">
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm); background: var(--color-actor-3); color: white">0-3</div>
+      <div class="step-body">
+        <strong>Haiku</strong>
+        <p>Low complexity. Simple questions, short context, no tools. The house wine &mdash; reliable and affordable.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm); background: var(--color-actor-2); color: white">3-6.5</div>
+      <div class="step-body">
+        <strong>Sonnet</strong>
+        <p>Medium complexity. Some tools, moderate context, code blocks. A solid mid-range bottle.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm); background: var(--color-actor-1); color: white">6.5+</div>
+      <div class="step-body">
+        <strong>Opus</strong>
+        <p>High complexity. Many tools, large context, imperative commands. Break out the reserve vintage.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 — The Backup Expert + Sticky Model
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Backup Expert</h3>
+    <p>
+      The heuristic scorer is
+      <span class="term" data-definition="A deterministic process always produces the same output for the same input — no randomness involved">deterministic</span>
+      &mdash; fast and predictable, but it can only count signals, not understand meaning.
+      When enabled, ccmux also asks a "senior sommelier": it sends a lightweight classification request to Haiku itself, racing against an 800ms timeout.
+    </p>
+    <p>
+      If Haiku responds in time and its
+      <span class="term" data-definition="A confidence score is a numeric value representing how certain the system is about a classification, used to pick between competing recommendations">confidence score</span>
+      is higher than the heuristic's, Haiku's recommendation wins. If Haiku is slow or uncertain, the heuristic result stands. Best of both worlds.
+    </p>
+  </div>
+
+  <div class="callout callout-info animate-in">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-content">
+      <strong class="callout-title">Sticky Sessions Prevent Whiplash</strong>
+      <p>
+        Once ccmux picks a model for your session, it
+        <span class="term" data-definition="A cache is temporary storage that saves a computed result so it can be reused without recalculating, trading memory for speed">caches</span>
+        that choice (keyed by
+        <span class="term" data-definition="HMAC (Hash-based Message Authentication Code) is a cryptographic function that creates a unique fingerprint of data, used here to create a stable session key from request signals">HMAC</span>
+        of session signals) with a
+        <span class="term" data-definition="TTL (Time To Live) is a duration after which a cached value expires and must be recomputed — here, 2 hours">TTL</span>
+        of 2 hours. This is called a
+        <span class="term" data-definition="A sticky session is a routing pattern where once a client is assigned to a particular backend, all subsequent requests from that client go to the same backend">sticky session</span>.
+        It prevents jarring mid-conversation model switches where you suddenly go from Opus-quality answers to Haiku-quality answers.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 5 — Code Translation of Heuristic Scorer
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Under the Hood</h3>
+    <p>
+      Here is the actual scoring function. Each signal contributes points, they are summed, clamped to a 0&ndash;10 range, and converted to a
+      <span class="term" data-definition="A token band is a numeric range for estimated input token count that maps to a point value (e.g., under 500 tokens = 0 points, 500-2k = 1 point)">token band</span>.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/classifier/heuristic.ts:119-140</span>
+      <pre><code><span class="code-keyword">const</span> <span class="code-property">tokenContribution</span> = <span class="code-function">tokenBand</span>(<span class="code-property">signals</span>.<span class="code-property">estInputTokens</span>);
+<span class="code-keyword">const</span> <span class="code-property">toolContribution</span> = <span class="code-function">Math.min</span>(
+  <span class="code-property">signals</span>.<span class="code-property">tools</span>.<span class="code-property">length</span> * <span class="code-property">WEIGHTS</span>.<span class="code-property">toolBreadthFactor</span>,
+  <span class="code-property">WEIGHTS</span>.<span class="code-property">toolBreadthCap</span>,
+);
+<span class="code-keyword">const</span> <span class="code-property">codeContribution</span> = <span class="code-function">Math.min</span>(
+  <span class="code-function">countCodeFences</span>(<span class="code-property">input</span>.<span class="code-property">body</span>) * <span class="code-property">WEIGHTS</span>.<span class="code-property">codeBlockFactor</span>,
+  <span class="code-property">WEIGHTS</span>.<span class="code-property">codeBlockCap</span>,
+);
+<span class="code-keyword">const</span> <span class="code-property">phrasingContribution</span> = <span class="code-function">phrasingDelta</span>(<span class="code-function">lastUserText</span>(<span class="code-property">input</span>.<span class="code-property">body</span>));
+<span class="code-keyword">const</span> <span class="code-property">fileContribution</span> = <span class="code-function">Math.min</span>(
+  <span class="code-property">signals</span>.<span class="code-property">fileRefCount</span> * <span class="code-property">WEIGHTS</span>.<span class="code-property">filePathFactor</span>,
+  <span class="code-property">WEIGHTS</span>.<span class="code-property">filePathCap</span>,
+);
+
+<span class="code-keyword">const</span> <span class="code-property">rawScore</span> =
+  <span class="code-property">tokenContribution</span> + <span class="code-property">toolContribution</span> + <span class="code-property">codeContribution</span> +
+  <span class="code-property">phrasingContribution</span> + <span class="code-property">fileContribution</span>;
+<span class="code-keyword">const</span> <span class="code-property">score</span> = <span class="code-function">clamp</span>(<span class="code-property">rawScore</span>, <span class="code-number">0</span>, <span class="code-number">10</span>);
+<span class="code-keyword">const</span> <span class="code-property">suggestedModel</span> = <span class="code-function">bandFromScore</span>(<span class="code-property">score</span>);</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl">Look up the
+          <span class="term" data-definition="A token band is a numeric range for estimated input token count that maps to a point value (e.g., under 500 tokens = 0 points, 500-2k = 1 point)">token band</span>
+          (0&ndash;3 points based on input size).</p>
+        <p class="tl">Count unique tools &times; 0.5, but cap at 3 points.</p>
+        <p class="tl">Count code blocks &times; 0.3, cap at 2 points.</p>
+        <p class="tl">Check if the last message starts with an imperative verb (+1) or is a question (-1).</p>
+        <p class="tl">Count file references &times; 0.4, cap at 2 points.</p>
+        <p class="tl">Add up all the scores.</p>
+        <p class="tl">Clamp to 0&ndash;10 range so no single outlier dominates.</p>
+        <p class="tl">Convert score to model: under 3 = Haiku, 3&ndash;6.5 = Sonnet, over 6.5 = Opus.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#127863;</div>
+    <div class="callout-content">
+      <strong class="callout-title">Trained Palate, Not a Crystal Ball</strong>
+      <p>
+        The heuristic scorer is like a sommelier's instinct &mdash; it uses observable signals (what it can see on the label) to make a fast, good-enough call.
+        It doesn't read the full message, just like a sommelier doesn't taste every bottle before recommending it.
+        When the
+        <span class="term" data-definition="To escalate means to bump a request up to a more capable (and more expensive) model tier when the current tier is insufficient">escalate</span>
+        rules or the Haiku classifier override it, that is the senior sommelier stepping in.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 6 — Quiz
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Check Your Understanding</h3>
+    <p>Apply what you learned. Work through each scenario before choosing.</p>
+  </div>
+
+  <div class="quiz-container animate-in" id="quiz-module4">
+
+    <!-- Question 1 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Correct. Token count 1000 (500-2k) = 1 pt. Tools 4 x 0.5 = 2 pts. Code blocks 2 x 0.3 = 0.6 pts. Imperative verb 'Write' = +1 pt. Total: 4.6 -- squarely in the Sonnet band (3-6.5)." data-explanation-wrong="Work it out: tokens 1000 (in the 500-2k band) = 1 pt. Tools: 4 x 0.5 = 2 pts. Code: 2 x 0.3 = 0.6 pts. Phrasing: 'Write' is imperative = +1 pt. No file refs = 0 pts. Total: 1 + 2 + 0.6 + 1 + 0 = 4.6. That falls in the 3-6.5 Sonnet range.">
+      <h3 class="quiz-question">A request has 1,000 tokens, 4 tools, 2 code blocks, no file refs, and starts with "Write a function..." What is the approximate heuristic score and which model?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>About 2.6 &mdash; Haiku range</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>About 4.6 &mdash; Sonnet range</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>About 7.1 &mdash; Opus range</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Exactly. Rules are checked top-to-bottom and first match wins. 'plan-to-opus' is rule #1, and planMode is true, so it fires immediately. The frustration rule at #4 is never reached." data-explanation-wrong="Remember: rules are checked top-to-bottom and the FIRST match wins. Plan mode is checked at rule #1 (plan-to-opus). Since planMode is true, that rule fires immediately. The frustration-escalate rule at position #4 never gets evaluated.">
+      <h3 class="quiz-question">The balanced recipe has 4 rules. A request comes in that is in plan mode AND has frustration detected. Which rule fires?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>plan-to-opus &mdash; it is first in the list, and first-match-wins</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>frustration-escalate &mdash; frustration signals always take priority</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Both fire and the higher tier wins</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="quiz-question-block" data-correct="option-c" data-explanation-right="Right. Sticky sessions cache the model choice for the session (2-hour TTL). Even though the 4th exchange scores as Haiku-level, the cached Sonnet decision holds. No mid-conversation whiplash." data-explanation-wrong="Think about sticky sessions: once ccmux picks a model, it caches that choice (keyed by HMAC of session signals) for 2 hours. The 4th exchange still falls within that sticky window, so the original Sonnet selection holds -- preventing jarring quality drops mid-conversation.">
+      <h3 class="quiz-question">After 3 exchanges in a session, ccmux picks Sonnet. On the 4th exchange, the heuristic scores the request as Haiku-level. What model is used?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Haiku &mdash; the heuristic score determines the model each time</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Opus &mdash; ccmux always escalates when uncertain</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Sonnet &mdash; sticky session caches the choice for the session</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <button class="quiz-check-btn" onclick="checkQuiz('quiz-module4')">Check Answers</button>
+    <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module4')">Try Again</button>
+  </div>
+
+</section>
+<section class="module" id="module-5">
+  <div class="module-content">
+
+    <!-- ── MODULE HEADER ──────────────────────────────────────── -->
+    <div class="module-header animate-in">
+      <span class="module-number">05</span>
+      <h2 class="module-title">Take the Wheel</h2>
+      <p class="module-subtitle">CLI commands, configuration, and making ccmux yours</p>
+    </div>
+
+    <!-- ── SCREEN 1: THE CONTROL PANEL — CLI COMMANDS ─────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">The Control Panel</h3>
+      <p class="animate-in">
+        A car dashboard puts every control within reach. ccmux's
+        <span class="term" data-definition="Command-Line Interface: a text-based tool you run in a terminal, as opposed to a graphical application">CLI</span>
+        works the same way -- eight commands that cover everything from first-time setup to ongoing tuning.
+      </p>
+
+      <div class="badge-list animate-in">
+        <div class="badge-item">
+          <code class="badge-code">ccmux init</code>
+          <span class="badge-desc"><span class="term" data-definition="Scaffold means to auto-generate a starter project structure or config file with sensible defaults, so you do not have to write it from scratch">Scaffold</span> a config file with a pre-built <span class="term" data-definition="A recipe is a pre-configured policy template (balanced, aggressive, or conservative) that provides a ready-made set of routing rules">recipe</span></span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux run -- claude</code>
+          <span class="badge-desc">Start proxy, run Claude through it, tear down on exit</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux start</code>
+          <span class="badge-desc">Start the proxy as a standalone background server</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux status</code>
+          <span class="badge-desc">Check proxy health, model availability, config validation</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux report</code>
+          <span class="badge-desc">Summarize routing decisions (filter by time, group by model)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux explain</code>
+          <span class="badge-desc">Dry-run a JSON request through the pipeline without sending it</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux dashboard</code>
+          <span class="badge-desc">Launch a visual analytics <span class="term" data-definition="A dashboard is a single-page visual interface that displays real-time metrics, charts, and status indicators at a glance">dashboard</span> in your browser</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux tune</code>
+          <span class="badge-desc">Suggest policy changes based on your decision log patterns</span>
+        </div>
+      </div>
+
+      <div class="callout callout-info animate-in">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-content">
+          <strong class="callout-title">You Don't Need to Understand the Engine</strong>
+          <p>Like a car dashboard, these commands are grouped by purpose: gauges (<code>status</code>, <code>report</code>) tell you what is happening, controls (<code>tune</code>, <code>explain</code>) let you adjust behavior, and presets (<code>init</code> with a recipe) get you driving without tweaking every knob.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 2: THE CONFIG FILE — CODE TRANSLATION ──────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">The Config File</h3>
+      <p class="animate-in">
+        This is what lives inside <code>~/.ccmux/config.yml</code>. Every setting has a sensible default -- you only override what you need.
+      </p>
+
+      <div class="translation-block animate-in">
+        <div class="translation-code">
+          <span class="translation-label">~/.ccmux/config.yml</span>
+<code><span class="code-line"><span class="code-property">port</span>: <span class="code-number">7879</span></span>
+<span class="code-line"><span class="code-property">mode</span>: <span class="code-string">live</span></span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">rules</span>:</span>
+<span class="code-line">  - <span class="code-property">id</span>: <span class="code-string">plan-to-opus</span></span>
+<span class="code-line">    <span class="code-property">when</span>: { <span class="code-property">planMode</span>: <span class="code-keyword">true</span> }</span>
+<span class="code-line">    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">opus</span> }</span>
+<span class="code-line">  - <span class="code-property">id</span>: <span class="code-string">trivial-to-haiku</span></span>
+<span class="code-line">    <span class="code-property">when</span>:</span>
+<span class="code-line">      <span class="code-property">all</span>:</span>
+<span class="code-line">        - { <span class="code-property">messageCount</span>: { <span class="code-property">lt</span>: <span class="code-number">5</span> } }</span>
+<span class="code-line">        - { <span class="code-property">toolUseCount</span>: { <span class="code-property">eq</span>: <span class="code-number">0</span> } }</span>
+<span class="code-line">        - { <span class="code-property">estInputTokens</span>: { <span class="code-property">lt</span>: <span class="code-number">2000</span> } }</span>
+<span class="code-line">    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">haiku</span> }</span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">classifier</span>:</span>
+<span class="code-line">  <span class="code-property">enabled</span>: <span class="code-keyword">true</span></span>
+<span class="code-line">  <span class="code-property">model</span>: <span class="code-string">claude-haiku-4-5-20251001</span></span>
+<span class="code-line">  <span class="code-property">timeoutMs</span>: <span class="code-number">800</span></span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">stickyModel</span>:</span>
+<span class="code-line">  <span class="code-property">enabled</span>: <span class="code-keyword">true</span></span>
+<span class="code-line">  <span class="code-property">sessionTtlMs</span>: <span class="code-number">7200000</span></span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">logging</span>:</span>
+<span class="code-line">  <span class="code-property">content</span>: <span class="code-string">hashed</span></span></code>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">Plain English</span>
+          <div class="translation-lines">
+            <div class="tl">Listen on <span class="term" data-definition="A port is a numbered endpoint (0-65535) on your computer that a server binds to in order to receive network connections. Port 7879 is ccmux's default.">port</span> 7879 (with automatic fallback if busy).</div>
+            <div class="tl">Run in <span class="term" data-definition="In live mode, ccmux actively routes requests to the chosen model. In shadow mode, it only logs what it WOULD have done without changing anything.">live mode</span> -- actually route requests (vs <span class="term" data-definition="Shadow mode lets ccmux log routing decisions without actually changing the model. Use it to preview cost savings and catch bad rules before they affect real work.">shadow mode</span> which only logs).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Rules section -- the same balanced recipe we saw in Module 4.</div>
+            <div class="tl">If plan mode is active, always use Opus.</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">If the conversation is short (fewer than 5 messages),</div>
+            <div class="tl">has no tool calls,</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">and estimated input is under 2000 tokens --</div>
+            <div class="tl">send it to Haiku. AND means all three conditions must be true.</div>
+            <div class="tl">route to Haiku (the cheapest model).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Enable the Haiku classifier as backup,</div>
+            <div class="tl">using the Haiku model for classification calls,</div>
+            <div class="tl">with an 800ms timeout (if it takes longer, fall back to heuristics).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Cache model choices per session --</div>
+            <div class="tl">once a model is picked for a session, stick with it</div>
+            <div class="tl">for 2 hours (avoids jarring mid-conversation switches).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Log decisions with hashed content (privacy-safe -- no raw messages stored).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 3: PICK YOUR STYLE — RECIPE COMPARISON ─────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">Pick Your Style</h3>
+      <p class="animate-in">
+        When you run <code>ccmux init</code>, you choose one of three recipes. Think of them as driving modes: eco, sport, and comfort. Each generates a complete <span class="term" data-definition="YAML (YAML Ain't Markup Language) is a human-readable data format used for configuration files. It uses indentation instead of brackets to show structure.">YAML</span> <span class="term" data-definition="A config (configuration) file stores settings that control how a program behaves, separate from the program's code itself">config</span> you can customize later.
+      </p>
+
+      <div class="pattern-cards animate-in">
+        <div class="pattern-card" style="border-top: 3px solid var(--color-actor-5)">
+          <div class="pattern-icon" style="background: #E8F5EE">&#9878;&#65039;</div>
+          <h4 class="pattern-title">Balanced (default)</h4>
+          <p class="pattern-desc">Opus for planning, Haiku for trivial turns, escalate on retries and frustration. Good starting point for most users.</p>
+        </div>
+        <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+          <div class="pattern-icon" style="background: #FDF5E0">&#128176;</div>
+          <h4 class="pattern-title">Aggressive</h4>
+          <p class="pattern-desc">Maximum cost savings. Haiku by default, Sonnet for tool use, Opus only for plan mode. Best if you are optimizing for cost.</p>
+        </div>
+        <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+          <div class="pattern-icon" style="background: #EDE8F5">&#127919;</div>
+          <h4 class="pattern-title">Conservative</h4>
+          <p class="pattern-desc">Maximum quality. Opus by default, Sonnet only for simple questions. Best for critical work where accuracy matters most.</p>
+        </div>
+      </div>
+
+      <div class="callout callout-warn animate-in">
+        <div class="callout-icon">&#9878;&#65039;</div>
+        <div class="callout-content">
+          <strong class="callout-title">Start Balanced, Then Tune</strong>
+          <p>The balanced recipe is the safest on-ramp. Run it for a week, review <code>ccmux report</code>, and then tighten or loosen rules based on what the data tells you. The <code>ccmux tune</code> command will even suggest specific changes.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 4: WATCHING THE GAUGES ─────────────────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">Watching the Gauges</h3>
+      <p class="animate-in">
+        The <code>ccmux dashboard</code> command launches a local <span class="term" data-definition="A Single-Page Application is a web app that loads once and updates dynamically without full page reloads. The ccmux dashboard is a lightweight SPA.">SPA</span> built with <span class="term" data-definition="React is a JavaScript library for building user interfaces using reusable components. The ccmux dashboard uses React for its interactive charts and real-time updates.">React</span> that shows routing activity in real time. The <code>ccmux report</code> command gives you the same data as a terminal summary.
+      </p>
+
+      <div class="callout callout-accent animate-in">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-content">
+          <strong class="callout-title">Shadow Mode: Test Before You Commit</strong>
+          <p>Set mode to "shadow" and ccmux will log what it WOULD have done without actually changing the model. This lets you preview cost savings and catch bad rules before they affect your work.</p>
+        </div>
+      </div>
+
+      <p class="animate-in">
+        Every routing decision is recorded to a daily <span class="term" data-definition="JSON Lines format: a text file where each line is a valid JSON object. Easy to append, easy to parse line-by-line, and easy to stream.">JSONL</span> log. Here is what each entry contains:
+      </p>
+
+      <div class="badge-list animate-in">
+        <div class="badge-item">
+          <code class="badge-code">timestamp</code>
+          <span class="badge-desc">When the decision was made</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">signals</code>
+          <span class="badge-desc">All extracted signals (tokens, tools, plan mode, etc.)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">matchedRule</code>
+          <span class="badge-desc">Which rule fired (or "classifier" if no rule matched)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">chosenModel</code>
+          <span class="badge-desc">The final model selection (haiku, sonnet, or opus)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">confidence</code>
+          <span class="badge-desc">How confident the system was in its choice (0.2 to 0.85)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">costEstimate</code>
+          <span class="badge-desc">Estimated cost of this request at the chosen tier</span>
+        </div>
+      </div>
+
+      <div class="callout callout-info animate-in">
+        <div class="callout-icon">&#128260;</div>
+        <div class="callout-content">
+          <strong class="callout-title"><span class="term" data-definition="Hot-reload means the application detects file changes and applies them automatically while running, without requiring a manual restart">Hot Reload</span></strong>
+          <p>Edit your config file while ccmux is running -- it watches for changes and picks them up automatically. No restart needed. Logs rotate daily with automatic <span class="term" data-definition="Log rotation is the practice of archiving old log files and starting fresh ones on a schedule (e.g., daily), preventing any single log file from growing unbounded">log rotation</span> so they never grow unbounded.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 5: QUIZ ────────────────────────────────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">Check Your Understanding</h3>
+      <p class="animate-in">Scenario-based questions. Think about what you would actually do in each situation.</p>
+
+      <div class="quiz-container animate-in" id="quiz-module5">
+
+        <!-- Question 1 -->
+        <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Exactly. The balanced recipe optimizes cost for simple tasks (Haiku for trivial turns) while keeping Opus for planning and escalating on retries. It gives you savings without sacrificing quality where it matters." data-explanation-wrong="The balanced recipe is the right starting point here. It saves money on simple tasks by routing them to Haiku, but keeps Opus for planning and automatically escalates when things go wrong -- giving you both cost savings and quality protection.">
+          <h3 class="quiz-question">You want to save maximum money but you are worried about quality dropping on important tasks. Which recipe should you start with?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Balanced -- it optimizes cost for simple tasks while keeping Opus for planning and escalating when things go wrong</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Aggressive -- maximum savings is what you asked for</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Conservative -- it guarantees quality by using Opus for everything</span>
+            </button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Correct. Shadow mode logs every routing decision without actually changing the model. You can review the report, see projected savings, and catch any bad rules -- all without risking your real work." data-explanation-wrong="The key phrase is 'without actually changing your model.' Shadow mode (mode: shadow) does exactly that -- it runs the full decision pipeline but only logs what it WOULD have done. No actual routing changes until you switch to live mode.">
+          <h3 class="quiz-question">You just installed ccmux and want to see what it would do without actually changing your model. What do you set?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Run <code>ccmux explain</code> on every request manually</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Set <code>mode: shadow</code> -- it logs decisions without routing</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Set <code>classifier.enabled: false</code> to disable automatic routing</span>
+            </button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+
+        <!-- Question 3 -->
+        <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Right. If 80% of requests go to Haiku but retries are high, the trivial-to-haiku rule is catching requests that are too complex for Haiku. Tightening the rule conditions (e.g., lower the token threshold or add stricter tool-use checks) will route fewer borderline requests to the cheapest model." data-explanation-wrong="The problem is that too many requests are being classified as trivial and sent to Haiku, but some of them are actually too complex for it -- causing retries. The fix is to make the trivial-to-haiku rule stricter so only truly simple requests get the cheapest model.">
+          <h3 class="quiz-question">Your report shows 80% of requests went to Haiku but you are getting too many retries. What should you adjust?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Make the trivial-to-haiku rule stricter so fewer borderline requests go to the cheapest model</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Switch to the conservative recipe -- Opus handles everything</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Disable the classifier so only rules make decisions</span>
+            </button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-module5')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module5')">Try Again</button>
+      </div>
+    </div>
+
+  </div>
+</section>  </main>
+
+</body>
+</html>

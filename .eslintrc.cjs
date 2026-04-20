@@ -19,6 +19,9 @@ module.exports = {
     'node_modules/',
     'coverage/',
     'src/dashboard/frontend/',
+    'bin/',
+    'course/',
+    'tests/dashboard/spa/',
     '*.cjs',
     '*.config.ts',
     '*.config.js',
@@ -50,6 +53,12 @@ module.exports = {
             IIFEs: true,
           },
         ],
+      },
+    },
+    {
+      files: ['scripts/**/*.ts'],
+      rules: {
+        'no-console': 'off',
       },
     },
     {

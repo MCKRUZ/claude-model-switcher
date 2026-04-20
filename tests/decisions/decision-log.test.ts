@@ -37,6 +37,19 @@ function mkRecord(over: Partial<DecisionRecord> = {}): DecisionRecord {
   };
 }
 
+function defaultOpts(dir: string, overrides: Record<string, unknown> = {}) {
+  return {
+    dir,
+    rotation: 'daily' as const,
+    maxBytes: 10_000,
+    retentionDays: 30,
+    fsync: false,
+    logger: silentLogger(),
+    clock: () => new Date('2026-04-17T00:00:00Z'),
+    ...overrides,
+  };
+}
+
 let writer: DecisionLogWriter | null = null;
 
 afterEach(async () => {
@@ -47,18 +60,10 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe('DecisionLogWriter', () => {
+describe('DecisionLogWriter — core writes', () => {
   it('writes one JSONL line per record matching the input shape', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 1024 * 1024,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => new Date('2026-04-17T00:00:00Z'),
-    });
+    writer = createDecisionLogWriter(defaultOpts(dir, { maxBytes: 1024 * 1024 }));
     writer.append(mkRecord({ session_id: 'a' }));
     writer.append(mkRecord({ session_id: 'b' }));
     await writer.flush();
@@ -70,15 +75,7 @@ describe('DecisionLogWriter', () => {
 
   it('records the actual forwarded model, not the requested one', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 1024 * 1024,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => new Date('2026-04-17T00:00:00Z'),
-    });
+    writer = createDecisionLogWriter(defaultOpts(dir, { maxBytes: 1024 * 1024 }));
     writer.append(mkRecord({
       chosen_model: 'claude-opus-4-7',
       forwarded_model: 'claude-haiku-4-5-20251001',
@@ -89,18 +86,15 @@ describe('DecisionLogWriter', () => {
     expect(parsed.forwarded_model).toBe('claude-haiku-4-5-20251001');
     expect(parsed.chosen_model).toBe('claude-opus-4-7');
   });
+});
 
+describe('DecisionLogWriter — rotation', () => {
   it('does not call statSync on the hot append path (in-process byte counter)', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
+    writer = createDecisionLogWriter(defaultOpts(dir, {
       rotation: 'size',
       maxBytes: 1024 * 1024,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => new Date('2026-04-17T00:00:00Z'),
-    });
+    }));
     await writer.flush();
     const { fsHelpers } = await import('../../src/decisions/_fs.js');
     const spy = vi.spyOn(fsHelpers, 'statSync');
@@ -113,15 +107,10 @@ describe('DecisionLogWriter', () => {
 
   it('triggers size-based rotation when the byte counter crosses maxBytes', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
+    writer = createDecisionLogWriter(defaultOpts(dir, {
       rotation: 'size',
-      maxBytes: 200, // very small to force rotation after ~1 record
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => new Date('2026-04-17T00:00:00Z'),
-    });
+      maxBytes: 200,
+    }));
     for (let i = 0; i < 5; i += 1) {
       writer.append(mkRecord({ session_id: `s${i}` }));
       await writer.flush();
@@ -136,15 +125,7 @@ describe('DecisionLogWriter', () => {
     const date = new Date('2026-04-17T12:00:00Z');
     const seedPath = join(dir, `decisions-2026-04-17.jsonl`);
     writeFileSync(seedPath, 'x'.repeat(500));
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 10_000,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => date,
-    });
+    writer = createDecisionLogWriter(defaultOpts(dir, { clock: () => date }));
     await writer.flush();
     expect(writer.currentBytes()).toBe(500);
   });
@@ -152,15 +133,7 @@ describe('DecisionLogWriter', () => {
   it('rotates when the UTC date changes (daily strategy)', async () => {
     const dir = tmpDir();
     let now = new Date('2026-04-17T23:59:00Z');
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 10_000,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => now,
-    });
+    writer = createDecisionLogWriter(defaultOpts(dir, { clock: () => now }));
     writer.append(mkRecord({ session_id: 'pre-midnight' }));
     await writer.flush();
     const firstPath = writer.currentPath();
@@ -172,22 +145,19 @@ describe('DecisionLogWriter', () => {
     expect(readFileSync(firstPath, 'utf8')).toMatch(/pre-midnight/);
     expect(readFileSync(secondPath, 'utf8')).toMatch(/post-midnight/);
   });
+});
 
+describe('DecisionLogWriter — backpressure and lifecycle', () => {
   it('drops records with reason=queue_full when MAX_QUEUE is exceeded', async () => {
     const dir = tmpDir();
     const warns: unknown[] = [];
     const logger: Logger = pino({ level: 'silent' });
     (logger as unknown as { warn: (...a: unknown[]) => void }).warn = (...a: unknown[]) => { warns.push(a); };
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
+    writer = createDecisionLogWriter(defaultOpts(dir, {
       maxBytes: 10_000_000,
-      retentionDays: 30,
-      fsync: false,
       logger,
       clock: () => new Date('2026-04-17T12:00:00Z'),
-    });
-    // Synchronously enqueue more than MAX_QUEUE (1000) without awaiting flush.
+    }));
     let drops = 0;
     for (let i = 0; i < 1500; i += 1) {
       const ok = writer.append(mkRecord({ session_id: `s${i}` }));
@@ -203,15 +173,11 @@ describe('DecisionLogWriter', () => {
     const warns: unknown[] = [];
     const logger: Logger = pino({ level: 'silent' });
     (logger as unknown as { warn: (...a: unknown[]) => void }).warn = (...a: unknown[]) => { warns.push(a); };
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
+    writer = createDecisionLogWriter(defaultOpts(dir, {
       maxBytes: 10_000_000,
-      retentionDays: 30,
-      fsync: false,
       logger,
       clock: () => new Date('2026-04-17T12:00:00Z'),
-    });
+    }));
     await writer.close();
     const accepted = writer.append(mkRecord());
     expect(accepted).toBe(false);
@@ -223,31 +189,23 @@ describe('DecisionLogWriter', () => {
     const dir = tmpDir();
     const { fsHelpers } = await import('../../src/decisions/_fs.js');
     const spy = vi.spyOn(fsHelpers, 'fsyncSync');
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 10_000,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
+    writer = createDecisionLogWriter(defaultOpts(dir, {
       clock: () => new Date(2026, 3, 17, 12),
-    });
+    }));
     writer.append(mkRecord());
     await writer.flush();
     expect(spy).not.toHaveBeenCalled();
   });
+});
 
+describe('DecisionLogWriter — reader', () => {
   it('reader yields records in chronological order across multiple files', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
+    writer = createDecisionLogWriter(defaultOpts(dir, {
       rotation: 'size',
       maxBytes: 200,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
       clock: () => new Date(2026, 3, 17, 12),
-    });
+    }));
     for (let i = 0; i < 5; i += 1) {
       writer.append(mkRecord({ session_id: `s${i}` }));
       await writer.flush();
@@ -263,15 +221,9 @@ describe('DecisionLogWriter', () => {
 
   it('reader limit caps the number of yielded records', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 10_000,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
+    writer = createDecisionLogWriter(defaultOpts(dir, {
       clock: () => new Date(2026, 3, 17, 12),
-    });
+    }));
     for (let i = 0; i < 5; i += 1) writer.append(mkRecord({ session_id: `s${i}` }));
     await writer.flush();
     await writer.close();
@@ -280,18 +232,12 @@ describe('DecisionLogWriter', () => {
     for await (const r of readDecisions(dir, { limit: 2 })) out.push(r.session_id);
     expect(out).toHaveLength(2);
   });
+});
 
+describe('DecisionLogWriter — serialization contracts', () => {
   it('golden record round-trip is byte-for-byte stable for a fixed input', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 10_000,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => new Date('2026-04-17T00:00:00Z'),
-    });
+    writer = createDecisionLogWriter(defaultOpts(dir));
     const record = mkRecord({
       timestamp: '2026-04-17T14:00:00.000Z',
       session_id: 'sess-golden',
@@ -308,15 +254,7 @@ describe('DecisionLogWriter', () => {
   // Tag for §17 contract: usage = null if upstream stream errors.
   it('records usage=null and cost=null when upstream usage is absent', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 10_000,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => new Date('2026-04-17T00:00:00Z'),
-    });
+    writer = createDecisionLogWriter(defaultOpts(dir));
     writer.append(mkRecord({ usage: null, cost_estimate_usd: null }));
     await writer.flush();
     const parsed = JSON.parse(readFileSync(writer.currentPath(), 'utf8').trim()) as DecisionRecord;
@@ -327,15 +265,7 @@ describe('DecisionLogWriter', () => {
   // Defensive: file size on disk must equal what we wrote (no half-written lines).
   it('writes complete lines (newline-terminated) to disk', async () => {
     const dir = tmpDir();
-    writer = createDecisionLogWriter({
-      dir,
-      rotation: 'daily',
-      maxBytes: 10_000,
-      retentionDays: 30,
-      fsync: false,
-      logger: silentLogger(),
-      clock: () => new Date('2026-04-17T00:00:00Z'),
-    });
+    writer = createDecisionLogWriter(defaultOpts(dir));
     writer.append(mkRecord());
     await writer.flush();
     const size = statSync(writer.currentPath()).size;

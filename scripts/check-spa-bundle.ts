@@ -1,6 +1,6 @@
 // SPA bundle URL scanner — flags non-local URLs in the dashboard dist.
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,7 +42,7 @@ export function scanBundleDir(distDir: string, extraAllowlist?: readonly RegExp[
     const content = readFileSync(file, 'utf-8');
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
-      const matches = lines[i].matchAll(URL_PATTERN);
+      const matches = lines[i]!.matchAll(URL_PATTERN);
       for (const m of matches) {
         const url = m[0];
         if (!allow.some(re => re.test(url))) {

@@ -24,7 +24,7 @@ export function parseArgs(argv: readonly string[]): OutboundArgs {
   }
 
   if (!binaryPath) throw new Error('Binary path is required');
-  return { binaryPath, idleMs };
+  return { binaryPath, ...(idleMs !== undefined ? { idleMs } : {}) };
 }
 
 async function run(args: OutboundArgs): Promise<void> {

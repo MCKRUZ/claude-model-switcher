@@ -27,7 +27,7 @@ export function parseArgs(argv: readonly string[]): SseArgs {
   }
 
   if (!binaryPath) throw new Error('Binary path is required');
-  return { binaryPath, goldenFile };
+  return { binaryPath, ...(goldenFile !== undefined ? { goldenFile } : {}) };
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

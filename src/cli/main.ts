@@ -27,17 +27,12 @@ export async function run(
   }
 }
 
-function buildProgram(
+function registerCoreCommands(
+  program: Command,
   box: ActionBox,
   stdout: NodeJS.WritableStream,
   stderr: NodeJS.WritableStream,
-): Command {
-  const program = new Command();
-  program.name('ccmux').description('Claude model switcher (ccmux)').exitOverride();
-  program.configureOutput({
-    writeOut: (s) => stdout.write(s),
-    writeErr: (s) => stderr.write(s),
-  });
+): void {
   program
     .command('start')
     .description('Start the ccmux proxy (debug runner)')
@@ -73,6 +68,20 @@ function buildProgram(
       const { runVersion } = await import('./version.js');
       box.code = runVersion(stdout);
     });
+}
+
+function buildProgram(
+  box: ActionBox,
+  stdout: NodeJS.WritableStream,
+  stderr: NodeJS.WritableStream,
+): Command {
+  const program = new Command();
+  program.name('ccmux').description('Claude model switcher (ccmux)').exitOverride();
+  program.configureOutput({
+    writeOut: (s) => stdout.write(s),
+    writeErr: (s) => stderr.write(s),
+  });
+  registerCoreCommands(program, box, stdout, stderr);
   registerInit(program, box, stdout, stderr);
   registerExplain(program, box, stdout, stderr);
   registerReport(program, box, stdout, stderr);

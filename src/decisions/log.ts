@@ -1,13 +1,3 @@
-// DecisionLogWriter — best-effort, append-only JSONL writer with daily-or-
-// size rotation, in-process byte counter (no per-append stat), bounded
-// in-memory queue, and pluggable clock (for tests). Durability is
-// best-effort by default; set fsync=true to fsync after each line at a
-// measurable throughput cost.
-//
-// All disk operations are serialized on a single promise chain so that
-// rotation, writes, and shutdown observe a consistent ordering. append() is
-// non-blocking and returns true if the record was enqueued, false on drop.
-
 import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs';
 import { join } from 'node:path';
 import type { Logger } from 'pino';
@@ -64,190 +54,203 @@ interface RotateJob {
 
 type Job = WriteJob | RotateJob;
 
+interface WriterState {
+  bytes: number;
+  stream: WriteStream | null;
+  path: string;
+  activeDate: string;
+  closed: boolean;
+  postAcceptDrops: number;
+  pending: Promise<void>;
+  reconcileTimer: NodeJS.Timeout | null;
+  readonly queue: Job[];
+}
+
+function endStream(s: WriteStream): Promise<void> {
+  return new Promise((resolve) => {
+    s.end(() => resolve());
+  });
+}
+
+async function openStream(state: WriterState, p: string, logger: Logger): Promise<void> {
+  if (state.stream !== null) {
+    const old = state.stream;
+    state.stream = null;
+    await endStream(old);
+  }
+  state.path = p;
+  const s = createWriteStream(p, { flags: 'a', highWaterMark: 64 * 1024 });
+  await new Promise<void>((resolve, reject) => {
+    const onOpen = (): void => {
+      s.removeListener('error', onErr);
+      resolve();
+    };
+    const onErr = (err: Error): void => {
+      s.removeListener('open', onOpen);
+      reject(err);
+    };
+    s.once('open', onOpen);
+    s.once('error', onErr);
+  });
+  s.on('error', (err) => {
+    logger.error({ err, event: 'decision_log_stream_error', path: p }, 'decision log stream error');
+  });
+  state.stream = s;
+  state.bytes = statSize(p);
+}
+
+async function performDailyRotation(state: WriterState, now: Date, opts: DecisionLogWriterOptions): Promise<void> {
+  const stamp = dateStamp(now);
+  if (state.stream === null || stamp !== state.activeDate) {
+    await openStream(state, join(opts.dir, dailyFilename(now)), opts.logger);
+    state.activeDate = stamp;
+    applyRetention(opts.dir, opts.retentionDays, now);
+  }
+}
+
+async function performSizeRotationOverflow(state: WriterState, now: Date, opts: DecisionLogWriterOptions): Promise<void> {
+  const target = join(opts.dir, nextSizeFilename(opts.dir, now));
+  const oldPath = state.path;
+  if (state.stream !== null) {
+    const s = state.stream;
+    state.stream = null;
+    await endStream(s);
+  }
+  let rotated = true;
+  try {
+    rotateRename(oldPath, target);
+  } catch (err) {
+    rotated = false;
+    opts.logger.warn({ err, event: 'decision_log_rotate_failed', src: oldPath, dst: target }, 'rotation rename failed');
+  }
+  await openStream(state, oldPath, opts.logger);
+  if (!rotated) state.bytes = 0;
+  applyRetention(opts.dir, opts.retentionDays, now);
+}
+
+async function performSizeRotation(state: WriterState, now: Date, opts: DecisionLogWriterOptions): Promise<void> {
+  const stamp = dateStamp(now);
+  if (state.stream === null || stamp !== state.activeDate) {
+    await openStream(state, join(opts.dir, dailyFilename(now)), opts.logger);
+    state.activeDate = stamp;
+    applyRetention(opts.dir, opts.retentionDays, now);
+    return;
+  }
+  if (state.bytes >= opts.maxBytes) {
+    await performSizeRotationOverflow(state, now, opts);
+  }
+}
+
+async function performRotation(state: WriterState, now: Date, opts: DecisionLogWriterOptions): Promise<void> {
+  if (opts.rotation === 'daily') {
+    await performDailyRotation(state, now, opts);
+  } else {
+    await performSizeRotation(state, now, opts);
+  }
+}
+
+async function performWrite(state: WriterState, line: string, opts: DecisionLogWriterOptions): Promise<void> {
+  await performRotation(state, opts.clock(), opts);
+  if (state.stream === null) return;
+  const s = state.stream;
+  await new Promise<void>((resolve, reject) => {
+    s.write(line, (err) => {
+      if (err !== null && err !== undefined) reject(err);
+      else resolve();
+    });
+  });
+  state.bytes += line.length;
+  if (opts.fsync) {
+    const fd = (s as unknown as { fd?: number }).fd;
+    if (typeof fd === 'number') {
+      try {
+        fsHelpers.fsyncSync(fd);
+      } catch {
+        // best-effort
+      }
+    }
+  }
+}
+
+function enqueue(state: WriterState, job: Job, opts: DecisionLogWriterOptions): void {
+  state.queue.push(job);
+  state.pending = state.pending
+    .then(async () => {
+      const j = state.queue.shift();
+      if (j === undefined) return;
+      if (j.kind === 'write') await performWrite(state, j.line, opts);
+      else if (j.kind === 'rotate') await performRotation(state, opts.clock(), opts);
+    })
+    .catch((err) => {
+      state.postAcceptDrops += 1;
+      opts.logger.error({ err, event: 'decision_log_internal_error' }, 'decision log internal error');
+    });
+}
+
+function appendRecord(state: WriterState, record: DecisionRecord, opts: DecisionLogWriterOptions): boolean {
+  if (state.closed) {
+    opts.logger.warn({ event: 'decision_log_dropped', reason: 'closed' }, 'decision log dropped (closed)');
+    return false;
+  }
+  if (state.queue.length >= MAX_QUEUE) {
+    opts.logger.warn({ event: 'decision_log_dropped', reason: 'queue_full' }, 'decision log dropped (queue full)');
+    return false;
+  }
+  enqueue(state, { kind: 'write', line: JSON.stringify(record) + '\n' }, opts);
+  return true;
+}
+
+async function closeWriter(state: WriterState): Promise<void> {
+  if (state.closed) return;
+  state.closed = true;
+  if (state.reconcileTimer !== null) {
+    clearInterval(state.reconcileTimer);
+    state.reconcileTimer = null;
+  }
+  await state.pending;
+  if (state.stream !== null) {
+    const s = state.stream;
+    state.stream = null;
+    await endStream(s);
+  }
+}
+
+function initState(opts: DecisionLogWriterOptions): WriterState {
+  return {
+    bytes: 0,
+    stream: null,
+    path: '',
+    activeDate: dateStamp(opts.clock()),
+    closed: false,
+    postAcceptDrops: 0,
+    pending: Promise.resolve(),
+    reconcileTimer: null,
+    queue: [],
+  };
+}
+
+function startReconcileTimer(state: WriterState, reconcileMs: number): void {
+  state.reconcileTimer = setInterval(() => {
+    if (state.path === '') return;
+    state.bytes = statSize(state.path);
+  }, reconcileMs);
+  state.reconcileTimer.unref?.();
+}
+
 export function createDecisionLogWriter(opts: DecisionLogWriterOptions): DecisionLogWriter {
   mkdirSync(opts.dir, { recursive: true });
 
-  const reconcileMs = opts.reconcileMs ?? RECONCILE_INTERVAL_MS;
-  const queue: Job[] = [];
-  let bytes = 0;
-  let stream: WriteStream | null = null;
-  let path = '';
-  let activeDate = dateStamp(opts.clock());
-  let closed = false;
-  let postAcceptDrops = 0;
-  let pending: Promise<void> = Promise.resolve();
+  const state = initState(opts);
 
-  function endStream(s: WriteStream): Promise<void> {
-    return new Promise((resolve) => {
-      s.end(() => resolve());
-    });
-  }
-
-  async function openStream(p: string): Promise<void> {
-    if (stream !== null) {
-      const old = stream;
-      stream = null;
-      await endStream(old);
-    }
-    path = p;
-    const s = createWriteStream(p, { flags: 'a', highWaterMark: 64 * 1024 });
-    await new Promise<void>((resolve, reject) => {
-      const onOpen = (): void => {
-        s.removeListener('error', onErr);
-        resolve();
-      };
-      const onErr = (err: Error): void => {
-        s.removeListener('open', onOpen);
-        reject(err);
-      };
-      s.once('open', onOpen);
-      s.once('error', onErr);
-    });
-    s.on('error', (err) => {
-      opts.logger.error({ err, event: 'decision_log_stream_error', path: p }, 'decision log stream error');
-    });
-    stream = s;
-    // Stat happens after 'open' so an existing file's size is observed correctly.
-    bytes = statSize(p);
-  }
-
-  async function performRotation(now: Date): Promise<void> {
-    const stamp = dateStamp(now);
-    if (opts.rotation === 'daily') {
-      if (stream === null || stamp !== activeDate) {
-        await openStream(join(opts.dir, dailyFilename(now)));
-        activeDate = stamp;
-        applyRetention(opts.dir, opts.retentionDays, now);
-      }
-      return;
-    }
-    // Size strategy.
-    if (stream === null) {
-      await openStream(join(opts.dir, dailyFilename(now)));
-      activeDate = stamp;
-      applyRetention(opts.dir, opts.retentionDays, now);
-      return;
-    }
-    if (stamp !== activeDate) {
-      await openStream(join(opts.dir, dailyFilename(now)));
-      activeDate = stamp;
-      applyRetention(opts.dir, opts.retentionDays, now);
-      return;
-    }
-    if (bytes >= opts.maxBytes) {
-      const target = join(opts.dir, nextSizeFilename(opts.dir, now));
-      const oldPath = path;
-      // Close active stream so Windows can rename the file.
-      if (stream !== null) {
-        const s = stream;
-        stream = null;
-        await endStream(s);
-      }
-      let rotated = true;
-      try {
-        rotateRename(oldPath, target);
-      } catch (err) {
-        rotated = false;
-        opts.logger.warn({ err, event: 'decision_log_rotate_failed', src: oldPath, dst: target }, 'rotation rename failed');
-      }
-      await openStream(oldPath);
-      // openStream re-seeds bytes from the file. If rename failed, the file
-      // is still oversized — force the counter to 0 so we don't immediately
-      // re-enter rotation on every subsequent append. We'll cross maxBytes
-      // again organically and try once more.
-      if (!rotated) bytes = 0;
-      applyRetention(opts.dir, opts.retentionDays, now);
-    }
-  }
-
-  async function performWrite(line: string): Promise<void> {
-    await performRotation(opts.clock());
-    if (stream === null) return;
-    const s = stream;
-    await new Promise<void>((resolve, reject) => {
-      s.write(line, (err) => {
-        if (err !== null && err !== undefined) reject(err);
-        else resolve();
-      });
-    });
-    bytes += line.length;
-    if (opts.fsync) {
-      const fd = (s as unknown as { fd?: number }).fd;
-      if (typeof fd === 'number') {
-        try {
-          fsHelpers.fsyncSync(fd);
-        } catch {
-          // best-effort
-        }
-      }
-    }
-  }
-
-  function enqueue(job: Job): void {
-    queue.push(job);
-    pending = pending
-      .then(async () => {
-        const j = queue.shift();
-        if (j === undefined) return;
-        if (j.kind === 'write') await performWrite(j.line);
-        else if (j.kind === 'rotate') await performRotation(opts.clock());
-      })
-      .catch((err) => {
-        postAcceptDrops += 1;
-        opts.logger.error({ err, event: 'decision_log_internal_error' }, 'decision log internal error');
-      });
-  }
-
-  function append(record: DecisionRecord): boolean {
-    if (closed) {
-      opts.logger.warn({ event: 'decision_log_dropped', reason: 'closed' }, 'decision log dropped (closed)');
-      return false;
-    }
-    if (queue.length >= MAX_QUEUE) {
-      opts.logger.warn({ event: 'decision_log_dropped', reason: 'queue_full' }, 'decision log dropped (queue full)');
-      return false;
-    }
-    const line = JSON.stringify(record) + '\n';
-    enqueue({ kind: 'write', line });
-    return true;
-  }
-
-  function flush(): Promise<void> {
-    return pending;
-  }
-
-  async function close(): Promise<void> {
-    if (closed) return;
-    closed = true;
-    if (reconcileTimer !== null) {
-      clearInterval(reconcileTimer);
-      reconcileTimer = null;
-    }
-    await flush();
-    if (stream !== null) {
-      const s = stream;
-      stream = null;
-      await endStream(s);
-    }
-  }
-
-  // Periodic reconcile to correct counter drift.
-  let reconcileTimer: NodeJS.Timeout | null = setInterval(() => {
-    if (path === '') return;
-    bytes = statSize(path);
-  }, reconcileMs);
-  reconcileTimer.unref?.();
-
-  // Eagerly open the initial stream so currentPath/currentBytes are valid
-  // and the first read-after-flush sees the file on disk.
-  enqueue({ kind: 'rotate' });
+  startReconcileTimer(state, opts.reconcileMs ?? RECONCILE_INTERVAL_MS);
+  enqueue(state, { kind: 'rotate' }, opts);
 
   return {
-    append,
-    flush,
-    close,
-    currentPath: () => path,
-    currentBytes: () => bytes,
-    droppedPostAccept: () => postAcceptDrops,
+    append: (record: DecisionRecord) => appendRecord(state, record, opts),
+    flush: () => state.pending,
+    close: () => closeWriter(state),
+    currentPath: () => state.path,
+    currentBytes: () => state.bytes,
+    droppedPostAccept: () => state.postAcceptDrops,
   };
 }

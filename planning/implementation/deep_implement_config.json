@@ -110,6 +110,14 @@
     "section-20-explain": {
       "status": "complete",
       "commit_hash": "67d6b3f"
+    },
+    "section-21-release-ci": {
+      "status": "complete",
+      "commit_hash": "4767348"
+    },
+    "section-22-docs": {
+      "status": "complete",
+      "commit_hash": "0dff2e3"
     }
   },
   "pre_commit": {

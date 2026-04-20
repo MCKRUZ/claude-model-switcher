@@ -202,6 +202,7 @@ describe('outcome tagger', () => {
     (deps.logger as unknown as { warn: (...a: unknown[]) => void }).warn = (...a: unknown[]) => { warns.push(a); };
     deps.readLines = (_path: string) => {
       return (async function* () {
+        yield* []; // exhaust before throwing
         throw new Error('cannot read sidecar');
       })();
     };

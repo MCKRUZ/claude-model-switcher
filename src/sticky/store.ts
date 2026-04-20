@@ -16,6 +16,18 @@ export interface StickyStoreOptions {
   readonly maxEntries?: number;
 }
 
+function evictOldest(map: Map<string, StickyEntry>): void {
+  let oldestKey: string | undefined;
+  let oldestSeen = Number.POSITIVE_INFINITY;
+  for (const [k, v] of map) {
+    if (v.lastSeenAt < oldestSeen) {
+      oldestSeen = v.lastSeenAt;
+      oldestKey = k;
+    }
+  }
+  if (oldestKey !== undefined) map.delete(oldestKey);
+}
+
 export function createStickyStore(opts: StickyStoreOptions): StickyStore {
   const ttlMs = opts.ttlMs;
   const maxEntries = opts.maxEntries ?? DEFAULT_MAX_ENTRIES;
@@ -23,18 +35,6 @@ export function createStickyStore(opts: StickyStoreOptions): StickyStore {
 
   function isExpired(entry: StickyEntry, now: number): boolean {
     return now - entry.lastSeenAt > ttlMs;
-  }
-
-  function evictOldest(): void {
-    let oldestKey: string | undefined;
-    let oldestSeen = Number.POSITIVE_INFINITY;
-    for (const [k, v] of map) {
-      if (v.lastSeenAt < oldestSeen) {
-        oldestSeen = v.lastSeenAt;
-        oldestKey = k;
-      }
-    }
-    if (oldestKey !== undefined) map.delete(oldestKey);
   }
 
   return {
@@ -52,7 +52,7 @@ export function createStickyStore(opts: StickyStoreOptions): StickyStore {
     },
     set(entry) {
       if (!map.has(entry.sessionId) && map.size >= maxEntries) {
-        evictOldest();
+        evictOldest(map);
       }
       map.set(entry.sessionId, entry);
     },

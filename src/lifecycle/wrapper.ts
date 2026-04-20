@@ -57,7 +57,7 @@ export async function runWrapper(opts: WrapperOptions): Promise<WrapperResult> {
   }
 }
 
-async function startWrapperProxy(opts: WrapperOptions, token: string): Promise<ProxyHandle> {
+async function startWrapperProxy(opts: WrapperOptions, _token: string): Promise<ProxyHandle> {
   const paths = opts.paths ?? resolvePaths();
   const configPath = opts.configPath ?? paths.configFile;
   const loaded = await loadConfig(configPath);

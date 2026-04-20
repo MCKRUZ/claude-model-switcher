@@ -24,7 +24,7 @@ export function parseArgs(argv: readonly string[]): HealthzArgs {
   }
 
   if (!binaryPath) throw new Error('Binary path is required');
-  return { binaryPath, port };
+  return { binaryPath, ...(port !== undefined ? { port } : {}) };
 }
 
 async function waitForHealthz(baseUrl: string, timeoutMs = 15_000): Promise<void> {

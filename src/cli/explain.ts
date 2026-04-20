@@ -10,6 +10,7 @@ import { HeuristicClassifier } from '../classifier/heuristic.js';
 import type { Signals, SessionContext } from '../signals/types.js';
 import type { PolicyResult } from '../policy/dsl.js';
 import type { ClassifierResult } from '../classifier/types.js';
+import type { LoadedConfig } from '../config/loader.js';
 
 export interface ExplainOptions {
   readonly requestPath: string;
@@ -90,7 +91,16 @@ function renderFinal(
   return 'abstain (no classifier requested)';
 }
 
-export async function runExplain(opts: ExplainOptions): Promise<number> {
+interface LoadedInputs {
+  readonly absPath: string;
+  readonly configFile: string;
+  readonly config: LoadedConfig;
+  readonly body: unknown;
+}
+
+async function loadInputs(
+  opts: ExplainOptions,
+): Promise<{ ok: true; value: LoadedInputs } | { ok: false; code: number }> {
   const absPath = resolve(opts.requestPath);
   const configFile = opts.configPath ?? resolvePaths().configFile;
 
@@ -99,16 +109,15 @@ export async function runExplain(opts: ExplainOptions): Promise<number> {
     for (const e of configResult.error) {
       opts.stderr.write(`config error [${e.path}]: ${e.message}\n`);
     }
-    return 1;
+    return { ok: false, code: 1 };
   }
-  const { config } = configResult.value;
 
   let rawJson: string;
   try {
     rawJson = readFileSync(absPath, 'utf8');
   } catch {
     opts.stderr.write(`Cannot read request file: ${absPath}\n`);
-    return 1;
+    return { ok: false, code: 1 };
   }
 
   let body: unknown;
@@ -116,8 +125,50 @@ export async function runExplain(opts: ExplainOptions): Promise<number> {
     body = JSON.parse(rawJson);
   } catch {
     opts.stderr.write(`Invalid JSON in ${absPath}\n`);
-    return 1;
+    return { ok: false, code: 1 };
   }
+
+  return { ok: true, value: { absPath, configFile, config: configResult.value, body } };
+}
+
+function formatReport(
+  absPath: string,
+  configFile: string,
+  mode: string,
+  signals: Signals,
+  policy: PolicyResult,
+  ruleCount: number,
+  useClassifier: boolean,
+  classifierResult: ClassifierResult | null,
+): string {
+  return [
+    `Request:          ${absPath}`,
+    `Config:           ${configFile}`,
+    `Mode:             ${mode}`,
+    '',
+    'Signals',
+    '-------',
+    renderSignalTable(signals),
+    '',
+    'Policy',
+    '------',
+    renderPolicy(policy, ruleCount),
+    '',
+    'Classifier',
+    '----------',
+    renderClassifier(policy, useClassifier, classifierResult),
+    '',
+    `Final decision:  ${renderFinal(policy, useClassifier, classifierResult)}`,
+    '',
+  ].join('\n');
+}
+
+export async function runExplain(opts: ExplainOptions): Promise<number> {
+  const loaded = await loadInputs(opts);
+  if (!loaded.ok) return loaded.code;
+
+  const { absPath, configFile, body } = loaded.value;
+  const { config } = loaded.value.config;
 
   const logger = pino({ level: 'silent' });
   const signals = extractSignals(body, undefined, stubSession(), logger);
@@ -145,27 +196,8 @@ export async function runExplain(opts: ExplainOptions): Promise<number> {
     );
   }
 
-  const out = [
-    `Request:          ${absPath}`,
-    `Config:           ${configFile}`,
-    `Mode:             ${config.mode}`,
-    '',
-    'Signals',
-    '-------',
-    renderSignalTable(signals),
-    '',
-    'Policy',
-    '------',
-    renderPolicy(policy, rules.length),
-    '',
-    'Classifier',
-    '----------',
-    renderClassifier(policy, opts.classifier, classifierResult),
-    '',
-    `Final decision:  ${renderFinal(policy, opts.classifier, classifierResult)}`,
-    '',
-  ].join('\n');
-
-  opts.stdout.write(out);
+  opts.stdout.write(formatReport(
+    absPath, configFile, config.mode, signals, policy, rules.length, opts.classifier, classifierResult,
+  ));
   return 0;
 }

@@ -50,123 +50,160 @@ interface SessionEntry {
   readonly frustration: boolean | null;
 }
 
+interface TaggerState {
+  readonly sidecarPath: string;
+  readonly tagged: Set<string>;
+  readonly lastSeen: Map<string, SessionEntry>;
+  readonly recentHashes: Map<string, { tsMs: number; sessionId: string }>;
+  timer: NodeJS.Timeout | null;
+  pending: Promise<void>;
+  started: boolean;
+  stopped: boolean;
+}
+
+function emitTag(
+  state: TaggerState,
+  deps: OutcomeTaggerDeps,
+  requestHash: string,
+  sessionId: string,
+  tag: OutcomeTag,
+  ts: string,
+): void {
+  if (state.tagged.has(requestHash)) return;
+  state.tagged.add(requestHash);
+  const line = JSON.stringify({ requestHash, sessionId, tag, ts }) + '\n';
+  state.pending = state.pending
+    .then(() => deps.appendLine(state.sidecarPath, line))
+    .catch((err) => {
+      deps.logger.warn({ err, event: 'outcome_tag_write_failed', requestHash, tag }, 'outcome tag write failed');
+    });
+}
+
+function pruneRecent(state: TaggerState, config: OutcomeTaggerConfig, nowMs: number): void {
+  const cutoff = nowMs - config.retryWindowSec * 2 * 1000;
+  for (const [hash, entry] of state.recentHashes) {
+    if (entry.tsMs < cutoff) state.recentHashes.delete(hash);
+  }
+}
+
+function classifyAndTag(
+  state: TaggerState,
+  config: OutcomeTaggerConfig,
+  deps: OutcomeTaggerDeps,
+  record: OutcomeTaggerInput,
+  tsMs: number,
+): void {
+  const priorHash = state.recentHashes.get(record.requestHash);
+  if (priorHash !== undefined && tsMs - priorHash.tsMs <= config.retryWindowSec * 1000) {
+    emitTag(state, deps, record.requestHash, priorHash.sessionId, 'retried', record.ts);
+  } else {
+    const prior = state.lastSeen.get(record.sessionId);
+    if (prior !== undefined) {
+      if (prior.frustration !== true && record.frustration === true) {
+        emitTag(state, deps, prior.requestHash, record.sessionId, 'frustration_next_turn', record.ts);
+      } else {
+        emitTag(state, deps, prior.requestHash, record.sessionId, 'continued', record.ts);
+      }
+    }
+  }
+}
+
+function handleIngest(
+  state: TaggerState,
+  config: OutcomeTaggerConfig,
+  deps: OutcomeTaggerDeps,
+  record: OutcomeTaggerInput,
+): void {
+  if (state.stopped) return;
+  try {
+    const tsMs = Date.parse(record.ts);
+    if (Number.isNaN(tsMs)) {
+      deps.logger.warn({ event: 'outcome_skip_bad_timestamp', ts: record.ts }, 'skipping record with unparseable timestamp');
+      return;
+    }
+    pruneRecent(state, config, tsMs);
+    classifyAndTag(state, config, deps, record, tsMs);
+    state.lastSeen.set(record.sessionId, {
+      requestHash: record.requestHash,
+      tsMs,
+      frustration: record.frustration,
+    });
+    state.recentHashes.set(record.requestHash, { tsMs, sessionId: record.sessionId });
+  } catch (err) {
+    deps.logger.warn({ err, event: 'outcome_ingest_error' }, 'outcome tagger ingest error');
+  }
+}
+
+function sweepIdle(state: TaggerState, config: OutcomeTaggerConfig, deps: OutcomeTaggerDeps): void {
+  try {
+    const nowMs = deps.now();
+    const cutoff = nowMs - config.idleTtlSec * 1000;
+    for (const [sessionId, prior] of state.lastSeen) {
+      if (prior.tsMs < cutoff) {
+        if (!state.tagged.has(prior.requestHash)) {
+          emitTag(state, deps, prior.requestHash, sessionId, 'abandoned', new Date(nowMs).toISOString());
+        }
+        state.lastSeen.delete(sessionId);
+      }
+    }
+  } catch (err) {
+    deps.logger.warn({ err, event: 'outcome_sweep_error' }, 'outcome sweep error');
+  }
+}
+
+async function seedFromExistingLog(state: TaggerState, deps: OutcomeTaggerDeps): Promise<void> {
+  try {
+    for await (const line of deps.readLines(state.sidecarPath)) {
+      if (line.length === 0) continue;
+      try {
+        const parsed = JSON.parse(line) as { requestHash?: unknown };
+        if (typeof parsed.requestHash === 'string') state.tagged.add(parsed.requestHash);
+      } catch {
+        // skip malformed line
+      }
+    }
+  } catch (err) {
+    deps.logger.warn({ err, event: 'outcome_seed_failed', path: state.sidecarPath }, 'outcome sidecar seed failed');
+  }
+}
+
 export function createOutcomeTagger(
   config: OutcomeTaggerConfig,
   deps: OutcomeTaggerDeps,
 ): OutcomeTagger {
-  const sidecarPath = join(config.logDir, 'outcomes.jsonl');
-  const tagged = new Set<string>();
-  const lastSeen = new Map<string, SessionEntry>();
-  const recentHashes = new Map<string, { tsMs: number; sessionId: string }>();
-  let timer: NodeJS.Timeout | null = null;
-  let pending: Promise<void> = Promise.resolve();
-  let started = false;
-  let stopped = false;
-
-  function emitTag(requestHash: string, sessionId: string, tag: OutcomeTag, ts: string): void {
-    if (tagged.has(requestHash)) return;
-    tagged.add(requestHash);
-    const line = JSON.stringify({ requestHash, sessionId, tag, ts }) + '\n';
-    pending = pending
-      .then(() => deps.appendLine(sidecarPath, line))
-      .catch((err) => {
-        deps.logger.warn({ err, event: 'outcome_tag_write_failed', requestHash, tag }, 'outcome tag write failed');
-      });
-  }
-
-  function pruneRecent(nowMs: number): void {
-    const cutoff = nowMs - config.retryWindowSec * 2 * 1000;
-    for (const [hash, entry] of recentHashes) {
-      if (entry.tsMs < cutoff) recentHashes.delete(hash);
-    }
-  }
-
-  function ingest(record: OutcomeTaggerInput): void {
-    if (stopped) return;
-    try {
-      const tsMs = Date.parse(record.ts);
-      if (Number.isNaN(tsMs)) {
-        deps.logger.warn({ event: 'outcome_skip_bad_timestamp', ts: record.ts }, 'skipping record with unparseable timestamp');
-        return;
-      }
-      pruneRecent(tsMs);
-
-      const priorHash = recentHashes.get(record.requestHash);
-      if (priorHash !== undefined && tsMs - priorHash.tsMs <= config.retryWindowSec * 1000) {
-        // Tag annotates the prior decision, so attribute to its sessionId.
-        emitTag(record.requestHash, priorHash.sessionId, 'retried', record.ts);
-      } else {
-        const prior = lastSeen.get(record.sessionId);
-        if (prior !== undefined) {
-          if (prior.frustration !== true && record.frustration === true) {
-            emitTag(prior.requestHash, record.sessionId, 'frustration_next_turn', record.ts);
-          } else {
-            emitTag(prior.requestHash, record.sessionId, 'continued', record.ts);
-          }
-        }
-      }
-
-      lastSeen.set(record.sessionId, {
-        requestHash: record.requestHash,
-        tsMs,
-        frustration: record.frustration,
-      });
-      recentHashes.set(record.requestHash, { tsMs, sessionId: record.sessionId });
-    } catch (err) {
-      deps.logger.warn({ err, event: 'outcome_ingest_error' }, 'outcome tagger ingest error');
-    }
-  }
-
-  function sweepIdle(): void {
-    try {
-      const nowMs = deps.now();
-      const cutoff = nowMs - config.idleTtlSec * 1000;
-      for (const [sessionId, prior] of lastSeen) {
-        if (prior.tsMs < cutoff) {
-          if (!tagged.has(prior.requestHash)) {
-            emitTag(prior.requestHash, sessionId, 'abandoned', new Date(nowMs).toISOString());
-          }
-          lastSeen.delete(sessionId);
-        }
-      }
-    } catch (err) {
-      deps.logger.warn({ err, event: 'outcome_sweep_error' }, 'outcome sweep error');
-    }
-  }
+  const state: TaggerState = {
+    sidecarPath: join(config.logDir, 'outcomes.jsonl'),
+    tagged: new Set<string>(),
+    lastSeen: new Map<string, SessionEntry>(),
+    recentHashes: new Map<string, { tsMs: number; sessionId: string }>(),
+    timer: null,
+    pending: Promise.resolve(),
+    started: false,
+    stopped: false,
+  };
 
   async function start(): Promise<void> {
-    if (started) return;
-    started = true;
-    try {
-      for await (const line of deps.readLines(sidecarPath)) {
-        if (line.length === 0) continue;
-        try {
-          const parsed = JSON.parse(line) as { requestHash?: unknown };
-          if (typeof parsed.requestHash === 'string') tagged.add(parsed.requestHash);
-        } catch {
-          // skip malformed line
-        }
-      }
-    } catch (err) {
-      deps.logger.warn({ err, event: 'outcome_seed_failed', path: sidecarPath }, 'outcome sidecar seed failed');
-    }
-    timer = setInterval(sweepIdle, config.tailIntervalMs);
-    timer.unref?.();
+    if (state.started) return;
+    state.started = true;
+    await seedFromExistingLog(state, deps);
+    state.timer = setInterval(() => sweepIdle(state, config, deps), config.tailIntervalMs);
+    state.timer.unref?.();
   }
 
   async function stop(): Promise<void> {
-    if (stopped) return;
-    stopped = true;
-    if (timer !== null) {
-      clearInterval(timer);
-      timer = null;
+    if (state.stopped) return;
+    state.stopped = true;
+    if (state.timer !== null) {
+      clearInterval(state.timer);
+      state.timer = null;
     }
-    await pending;
+    await state.pending;
   }
 
-  function flush(): Promise<void> {
-    return pending;
-  }
-
-  return { start, ingest, flush, stop };
+  return {
+    start,
+    ingest: (record) => handleIngest(state, config, deps, record),
+    flush: () => state.pending,
+    stop,
+  };
 }

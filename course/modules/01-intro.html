@@ -1,0 +1,276 @@
+<section class="module" id="module-1">
+
+  <!-- ============================================================
+       SCREEN 1 — The Problem
+       ============================================================ -->
+  <div class="module-header animate-in">
+    <div class="module-number">Module 1</div>
+    <h2 class="module-title">Your AI's Money-Saving Bodyguard</h2>
+    <p class="module-subtitle">What ccmux does and why it exists</p>
+  </div>
+
+  <div class="content-block animate-in">
+    <h3>The Problem</h3>
+    <p>
+      You use Claude — an AI assistant — through an
+      <span class="term" data-definition="Application Programming Interface: a standardized way for two programs to talk to each other over the network">API</span>.
+      Every request costs money, charged per
+      <span class="term" data-definition="A token is a chunk of text (roughly 3/4 of a word) that AI models use as their unit of reading and writing">token</span>.
+      Anthropic offers three models at wildly different price tiers, but your tooling sends everything to the same one.
+    </p>
+    <p>
+      "What's 2+2?" doesn't need a $15-per-million-token brain. But a complex multi-file refactor absolutely does.
+    </p>
+  </div>
+
+  <div class="pattern-cards animate-in">
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+      <div class="pattern-icon" style="background: var(--color-accent-light)">&#129504;</div>
+      <h4 class="pattern-title">
+        <span class="term" data-definition="Opus is Anthropic's most capable (and most expensive) AI model, designed for complex reasoning and difficult tasks">Opus</span> — $15/M tokens
+      </h4>
+      <p class="pattern-desc">The heavyweight. Complex reasoning, multi-file refactors, architectural decisions.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+      <div class="pattern-icon" style="background: var(--color-accent-light)">&#9881;&#65039;</div>
+      <h4 class="pattern-title">
+        <span class="term" data-definition="Sonnet is Anthropic's mid-tier AI model, balancing capability and cost for everyday coding tasks">Sonnet</span> — $3/M tokens
+      </h4>
+      <p class="pattern-desc">The workhorse. Day-to-day coding, writing tests, explaining code.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+      <div class="pattern-icon" style="background: var(--color-accent-light)">&#9889;</div>
+      <h4 class="pattern-title">
+        <span class="term" data-definition="Haiku is Anthropic's fastest and cheapest AI model, ideal for simple tasks like lookups and short answers">Haiku</span> — $0.80/M tokens
+      </h4>
+      <p class="pattern-desc">The speedster. Quick lookups, simple Q&amp;A, formatting tasks.</p>
+    </div>
+  </div>
+
+  <div class="callout callout-warn animate-in">
+    <div class="callout-icon">&#128184;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Cost Gap</strong>
+      <p>Opus is <strong>19x</strong> more expensive than Haiku. If even half your requests are simple, you're burning money on every one.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 — The Solution
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Solution</h3>
+    <p>
+      <strong>ccmux</strong> is a local
+      <span class="term" data-definition="A proxy is a middleman server that sits between your application and a destination, intercepting and optionally modifying traffic">proxy</span>
+      that sits between your
+      <span class="term" data-definition="Command-Line Interface: a text-based tool you run in a terminal, as opposed to a graphical application">CLI</span>
+      and Anthropic's API. It reads each request, estimates how complex it is, and picks the cheapest
+      <span class="term" data-definition="In AI, a model is a trained neural network that processes text. Different models vary in capability and cost">model</span>
+      that can handle it.
+    </p>
+    <p>
+      Think of it like an airport security checkpoint. It scans your luggage (reads the request metadata) without opening it (no body modification), then routes you to the right lane &mdash; economy or first class &mdash; based on what the scanner sees.
+    </p>
+  </div>
+
+  <div class="step-cards animate-in">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>You launch Claude normally</strong>
+        <p>ccmux starts a local
+          <span class="term" data-definition="HTTP (HyperText Transfer Protocol) is the standard protocol for sending data between a browser/client and a server">HTTP</span>
+          server and spawns your Claude CLI as a child process.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <strong>Intercept</strong>
+        <p>Your CLI sends its API call to ccmux instead of Anthropic, because ccmux swapped the destination address (more on this in Screen 3).</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <strong>Analyze</strong>
+        <p>ccmux reads the request headers and lightweight signals &mdash; system prompt length, conversation turns, tool count &mdash; to gauge complexity.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <strong>Pick a model</strong>
+        <p>Based on a rule set you control, ccmux selects Haiku, Sonnet, or Opus. Simple question? Haiku. Gnarly refactor? Opus.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <strong>Forward</strong>
+        <p>ccmux acts as a
+          <span class="term" data-definition="A reverse proxy accepts requests on behalf of a backend server and forwards them, hiding the backend's real address from the client">reverse proxy</span>:
+          it forwards the original request &mdash; byte-for-byte &mdash; to Anthropic with the chosen model, and streams the response back via
+          <span class="term" data-definition="Server-Sent Events: a protocol where the server pushes data to the client in a continuous stream, used by AI APIs to send tokens as they are generated">SSE</span>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 — The Env Var Trick (Code Translation)
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Env Var Trick</h3>
+    <p>
+      How does ccmux redirect traffic without you changing a single line of code? It uses an
+      <span class="term" data-definition="An environment variable is a named value set outside your program that configures its behavior at runtime, like a setting dial the OS exposes">environment variable</span>.
+      When ccmux spawns your CLI, it overrides <code>ANTHROPIC_BASE_URL</code> to point at itself.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/lifecycle/wrapper.ts</span>
+      <pre><code><span class="code-keyword">export function</span> <span class="code-function">buildChildEnv</span>(
+  <span class="code-property">parentEnv</span>: <span class="code-keyword">NodeJS</span>.ProcessEnv,
+  <span class="code-property">port</span>: <span class="code-keyword">number</span>,
+  <span class="code-property">token</span>: <span class="code-keyword">string</span>,
+): <span class="code-keyword">NodeJS</span>.ProcessEnv {
+  <span class="code-keyword">const</span> <span class="code-property">baseUrl</span> = <span class="code-string">`http://127.0.0.1:${port}`</span>;
+  <span class="code-keyword">const</span> <span class="code-property">noProxy</span> = <span class="code-string">'127.0.0.1,localhost'</span>;
+  <span class="code-keyword">return</span> {
+    ...<span class="code-property">parentEnv</span>,
+    <span class="code-property">ANTHROPIC_BASE_URL</span>: <span class="code-property">baseUrl</span>,
+    <span class="code-property">NO_PROXY</span>: <span class="code-property">noProxy</span>,
+    <span class="code-property">no_proxy</span>: <span class="code-property">noProxy</span>,
+    <span class="code-property">NOPROXY</span>: <span class="code-property">noProxy</span>,
+    <span class="code-property">CCMUX_PROXY_TOKEN</span>: <span class="code-property">token</span>,
+  };
+}</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl">Define a function that builds the set of environment variables for the child process (your Claude CLI).</p>
+        <p class="tl">It takes your current environment, the port ccmux is listening on, and an internal auth token.</p>
+        <p class="tl">Build the address of our local proxy: <code>http://127.0.0.1:&lt;port&gt;</code> &mdash; this is just "localhost" with the specific port number.</p>
+        <p class="tl">Tell the OS to bypass any corporate or system-wide proxy for local traffic, so requests actually reach ccmux.</p>
+        <p class="tl">Copy <em>all</em> existing env vars with the spread operator, then override <code>ANTHROPIC_BASE_URL</code> to point to our proxy &mdash; <strong>this is the magic trick</strong> that redirects every API call without touching the client code.</p>
+        <p class="tl">Set three variants of the no-proxy variable (<code>NO_PROXY</code>, <code>no_proxy</code>, <code>NOPROXY</code>) because different
+          <span class="term" data-definition="Node.js is a JavaScript runtime that lets you run JavaScript outside the browser, commonly used for servers and CLI tools">Node.js</span>
+          HTTP libraries check different casing.</p>
+        <p class="tl">Pass an internal token so ccmux can verify the request actually came from the child process it spawned, not some random local connection.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 — Callout + What ccmux does NOT do
+       ============================================================ -->
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Interception Pattern</strong>
+      <p>This technique &mdash; changing where software sends its requests by swapping an environment variable &mdash; is used everywhere in software. Proxies, testing tools, and service meshes all work this way. It is one of the most powerful tricks in a developer's toolkit.</p>
+    </div>
+  </div>
+
+  <div class="content-block animate-in">
+    <h3>What ccmux Does NOT Do</h3>
+    <p>
+      ccmux is intentionally minimal. It makes three hard guarantees so you can trust it with production API traffic.
+    </p>
+  </div>
+
+  <div class="badge-list animate-in">
+    <div class="badge-item">
+      <code class="badge-code">Zero telemetry</code>
+      <span class="badge-desc">No outbound calls except to <code>api.anthropic.com</code>. Your data never leaves the expected path.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">No body modification</code>
+      <span class="badge-desc">Request and response bodies pass through byte-for-byte. ccmux only reads headers and lightweight signals.</span>
+    </div>
+    <div class="badge-item">
+      <code class="badge-code">Auth passthrough</code>
+      <span class="badge-desc">Your Anthropic API key is forwarded as-is. ccmux never stores, logs, or inspects it.</span>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 5 — Quiz
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Check Your Understanding</h3>
+    <p>These are scenario questions, not memorization. Think through each one before choosing.</p>
+  </div>
+
+  <div class="quiz-container animate-in" id="quiz-module1">
+
+    <!-- Question 1 -->
+    <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Exactly. A trivial question like this is a textbook Haiku job -- fast and 19x cheaper than Opus." data-explanation-wrong="Think about it: 'what time is it?' is about as simple as a question gets. There is no complex reasoning involved, so the cheapest model handles it fine.">
+      <h3 class="quiz-question">You ask Claude "what time is it?" &mdash; which model should ccmux route to?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Haiku &mdash; it is a simple question, use the cheapest model</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Sonnet &mdash; mid-tier is always the safe default</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Opus &mdash; you want the most accurate answer possible</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Correct. ccmux forwards your API key untouched -- it never stores, logs, or modifies authentication credentials." data-explanation-wrong="Remember the three guarantees: ccmux provides auth passthrough. Your API key is forwarded to Anthropic exactly as your client sent it. ccmux never touches auth.">
+      <h3 class="quiz-question">ccmux sits between your client and Anthropic. What happens to your API key?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>ccmux replaces it with its own key for the cheaper models</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>It is passed through unchanged &mdash; ccmux never touches auth</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>ccmux strips the key and uses anonymous access for Haiku</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="quiz-question-block" data-correct="option-c" data-explanation-right="Right. ccmux only reads lightweight signals (headers, token counts). The message body passes through byte-for-byte, untouched, whether the request succeeds or fails." data-explanation-wrong="Recall the airport metaphor: ccmux scans the luggage (reads headers) but never opens it (never modifies the body). Your message content passes through byte-for-byte regardless of what happens.">
+      <h3 class="quiz-question">A request to ccmux fails due to a network error. What happens to your message content?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>ccmux caches the message and retries with a cheaper model</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>The message is logged locally for debugging</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Nothing &mdash; ccmux only reads signals, the body passes through byte-for-byte</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <button class="quiz-check-btn" onclick="checkQuiz('quiz-module1')">Check Answers</button>
+    <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module1')">Try Again</button>
+  </div>
+
+</section>

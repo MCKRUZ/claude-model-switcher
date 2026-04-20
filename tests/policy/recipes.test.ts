@@ -8,16 +8,26 @@ import { loadRules } from '../../src/policy/load.js';
 import { evaluate } from '../../src/policy/evaluate.js';
 import type { Signals } from '../../src/signals/types.js';
 import { makeSignals } from './helpers.js';
-import mixedFixtures from './fixtures/mixed.json' assert { type: 'json' };
+
+interface MixedFixture {
+  readonly name: string;
+  readonly planMode: boolean;
+  readonly messageCount: number;
+  readonly toolUseCount: number;
+  readonly estInputTokens: number;
+  readonly frustration: boolean;
+  readonly retryCount: number;
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
+const mixedFixtures: readonly MixedFixture[] = JSON.parse(readFileSync(join(here, 'fixtures', 'mixed.json'), 'utf-8'));
 const RECIPE_DIR = join(here, '..', '..', 'src', 'policy', 'recipes');
 
 function recipePath(name: string): string {
   return join(RECIPE_DIR, `${name}.yaml`);
 }
 
-function signalsFromFixture(f: (typeof mixedFixtures)[number]): Signals {
+function signalsFromFixture(f: MixedFixture): Signals {
   return makeSignals({
     planMode: f.planMode,
     messageCount: f.messageCount,

@@ -1,6 +1,6 @@
 // Documentation validation: link checker, YAML lint, required strings, no placeholders.
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { CORE_SCHEMA, load as yamlLoad } from 'js-yaml';
 import { fileURLToPath } from 'node:url';
@@ -116,7 +116,7 @@ export async function checkDocs(): Promise<CheckResult> {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  checkDocs().then(result => {
+  void checkDocs().then(result => {
     if (!result.ok) {
       console.error('Documentation check failed:');
       for (const err of result.errors) console.error(`  ${err}`);

@@ -186,6 +186,30 @@ interface InternalDeps {
   readonly now: () => number;
 }
 
+function buildClassifierResult(
+  data: { content?: unknown; usage?: HaikuUsage },
+  deps: InternalDeps,
+  start: number,
+): ClassifierResult | null {
+  const parsed = safeParseJson(extractAssistantText(data));
+  if (!isValidHaikuJson(parsed)) return null;
+
+  const pricingEntry = deps.pricing[deps.config.model];
+  const classifierCostUsd = computeClassifierCost(data.usage, pricingEntry);
+
+  const base: ClassifierResult = {
+    score: parsed.complexity,
+    suggestedModel: parsed.suggestedModel,
+    confidence: parsed.confidence,
+    source: 'haiku',
+    latencyMs: deps.now() - start,
+    classifierCostUsd,
+  };
+  return parsed.rationale !== undefined
+    ? { ...base, rationale: parsed.rationale }
+    : base;
+}
+
 class HaikuClassifier implements Classifier {
   constructor(private readonly deps: InternalDeps) {}
 
@@ -235,26 +259,8 @@ class HaikuClassifier implements Classifier {
 
       if (!response.ok) return null;
 
-      // Body read MUST happen while the timer is still armed; a slow body
-      // stream could otherwise outlive the timeout budget.
       const data = (await response.json()) as { content?: unknown; usage?: HaikuUsage };
-      const parsed = safeParseJson(extractAssistantText(data));
-      if (!isValidHaikuJson(parsed)) return null;
-
-      const pricingEntry = this.deps.pricing[this.deps.config.model];
-      const classifierCostUsd = computeClassifierCost(data.usage, pricingEntry);
-
-      const base: ClassifierResult = {
-        score: parsed.complexity,
-        suggestedModel: parsed.suggestedModel,
-        confidence: parsed.confidence,
-        source: 'haiku',
-        latencyMs: this.deps.now() - start,
-        classifierCostUsd,
-      };
-      return parsed.rationale !== undefined
-        ? { ...base, rationale: parsed.rationale }
-        : base;
+      return buildClassifierResult(data, this.deps, start);
     } catch {
       return null;
     } finally {

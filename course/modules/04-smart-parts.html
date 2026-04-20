@@ -1,0 +1,378 @@
+<section class="module" id="module-4" style="background: var(--color-bg-warm)">
+
+  <!-- ============================================================
+       SCREEN 1 — The Rule Book
+       ============================================================ -->
+  <div class="module-header animate-in">
+    <div class="module-number">Module 4</div>
+    <h2 class="module-title">The Smart Parts</h2>
+    <p class="module-subtitle">Rules, scoring, and how ccmux actually picks a model</p>
+  </div>
+
+  <div class="content-block animate-in">
+    <h3>The Rule Book</h3>
+    <p>
+      Think of ccmux as a wine
+      <span class="term" data-definition="A sommelier is a trained wine professional who selects the right wine for each guest and occasion based on context clues and expertise">sommelier</span>.
+      It examines the occasion (request signals), consults the wine list (your
+      <span class="term" data-definition="YAML (YAML Ain't Markup Language) is a human-readable data format used for configuration files, using indentation to show structure">YAML</span>
+      policy rules), and picks the right bottle. Here is the actual rule book from the
+      <code>balanced</code> recipe.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/policy/recipes/balanced.yaml</span>
+      <pre><code><span class="code-property">rules</span>:
+  <span class="code-comment"># Plan mode deserves Opus.</span>
+  - <span class="code-property">id</span>: <span class="code-string">plan-to-opus</span>
+    <span class="code-property">when</span>: { <span class="code-property">planMode</span>: <span class="code-keyword">true</span> }
+    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">opus</span> }
+
+  <span class="code-comment"># Trivial turns: short, no tools, small context.</span>
+  - <span class="code-property">id</span>: <span class="code-string">trivial-to-haiku</span>
+    <span class="code-property">when</span>:
+      <span class="code-property">all</span>:
+        - { <span class="code-property">messageCount</span>: { <span class="code-operator">lt</span>: <span class="code-number">5</span> } }
+        - { <span class="code-property">toolUseCount</span>: { <span class="code-operator">eq</span>: <span class="code-number">0</span> } }
+        - { <span class="code-property">estInputTokens</span>: { <span class="code-operator">lt</span>: <span class="code-number">2000</span> } }
+    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">haiku</span> }
+
+  <span class="code-comment"># Retries suggest the first tier couldn't cope.</span>
+  - <span class="code-property">id</span>: <span class="code-string">retry-escalate</span>
+    <span class="code-property">when</span>: { <span class="code-property">retryCount</span>: { <span class="code-operator">gte</span>: <span class="code-number">2</span> } }
+    <span class="code-property">then</span>: { <span class="code-property">escalate</span>: <span class="code-number">1</span> }
+
+  <span class="code-comment"># Frustration signal -> bump a tier.</span>
+  - <span class="code-property">id</span>: <span class="code-string">frustration-escalate</span>
+    <span class="code-property">when</span>: { <span class="code-property">frustration</span>: <span class="code-keyword">true</span> }
+    <span class="code-property">then</span>: { <span class="code-property">escalate</span>: <span class="code-number">1</span> }
+</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl">Here are the routing rules, checked top to bottom...</p>
+        <p class="tl"><strong>Rule 1:</strong> If the AI is in planning mode, always use Opus (the best model).</p>
+        <p class="tl"><strong>Rule 2:</strong> If ALL of these are true &mdash; short conversation, no tools used, small input &mdash; use Haiku (cheapest).</p>
+        <p class="tl"><strong>Rule 3:</strong> If this request has been retried 2+ times, bump up one tier (the current model is struggling).</p>
+        <p class="tl"><strong>Rule 4:</strong> If the user sounds frustrated, bump up one tier.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#127863;</div>
+    <div class="callout-content">
+      <strong class="callout-title">The Sommelier Analogy</strong>
+      <p>
+        Rules are the wine list &mdash; explicit pairings the sommelier memorized. "Steak? Cabernet." "Fish? Sauvignon Blanc."
+        Written in a
+        <span class="term" data-definition="Domain-Specific Language: a small, purpose-built language designed for one task (here, writing routing rules) rather than general programming">DSL</span>
+        anyone on your team can read and edit.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 2 — How Rules Compose
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>How Rules Compose</h3>
+    <p>
+      Each rule's <code>when</code> clause uses
+      <span class="term" data-definition="Composition is combining simple conditions into complex ones using logical operators (all, any, not) like building blocks">composition</span>
+      to combine simple
+      <span class="term" data-definition="A condition is a single true/false check against a request signal, like 'is the token count under 2000?'">conditions</span>
+      into complex ones. Three building blocks cover every case.
+    </p>
+  </div>
+
+  <div class="step-cards animate-in">
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm)">ALL</div>
+      <div class="step-body">
+        <strong>Every condition must be true</strong>
+        <p>Like a checklist &mdash; all boxes must be checked. Used for the "trivial" rule: short AND no tools AND small input.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm)">ANY</div>
+      <div class="step-body">
+        <strong>At least one condition must be true</strong>
+        <p>Like a multiple-choice question &mdash; any correct answer works.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm)">NOT</div>
+      <div class="step-body">
+        <strong>The condition must be false</strong>
+        <p>Like a bouncer with an exclusion list &mdash; "anyone EXCEPT VIPs."</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-warn animate-in">
+    <div class="callout-icon">&#9888;&#65039;</div>
+    <div class="callout-content">
+      <strong class="callout-title">First Match Wins</strong>
+      <p>
+        Rules are checked top-to-bottom. The FIRST rule that matches wins &mdash; later rules are never evaluated.
+        If NO rule matches, the engine says "abstain" and the
+        <span class="term" data-definition="A heuristic is a practical shortcut or rule of thumb that gives a good-enough answer without exhaustive analysis">heuristic</span>
+        classifier takes over.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 3 — The Scoring Machine
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Scoring Machine</h3>
+    <p>
+      When no rule matches, the sommelier switches from the wine list to their trained palate &mdash; the
+      <span class="term" data-definition="A heuristic is a practical shortcut or rule of thumb that gives a good-enough answer without exhaustive analysis">heuristic</span>
+      scorer. It examines five signals and assigns points to produce a
+      <span class="term" data-definition="A confidence score is a numeric value representing how certain the system is about a classification, used to pick between competing recommendations">confidence score</span>.
+    </p>
+  </div>
+
+  <div class="pattern-cards animate-in">
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-2)">
+      <div class="pattern-icon" style="background: #E4F2F7">&#128207;</div>
+      <h4 class="pattern-title">Token Count</h4>
+      <p class="pattern-desc">Under 500 &rarr; 0 pts. 500-2k &rarr; 1 pt. 2k-8k &rarr; 2 pts. Over 8k &rarr; 3 pts.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+      <div class="pattern-icon" style="background: #EDE8F5">&#128295;</div>
+      <h4 class="pattern-title">Tool Breadth</h4>
+      <p class="pattern-desc">0.5 pts per unique tool, capped at 3 pts. More tools = more complex task.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+      <div class="pattern-icon" style="background: #FDF5E0">&#128221;</div>
+      <h4 class="pattern-title">Code Fences</h4>
+      <p class="pattern-desc">0.3 pts per code block, capped at 2 pts. Code in the conversation = technical work.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-1)">
+      <div class="pattern-icon" style="background: #FDEEE9">&#128194;</div>
+      <h4 class="pattern-title">File References</h4>
+      <p class="pattern-desc">0.4 pts per file path, capped at 2 pts. File paths suggest multi-file work.</p>
+    </div>
+    <div class="pattern-card" style="border-top: 3px solid var(--color-actor-5)">
+      <div class="pattern-icon" style="background: #E8F5EE">&#128172;</div>
+      <h4 class="pattern-title">Phrasing</h4>
+      <p class="pattern-desc">Imperative verbs like "write" or "build" &rarr; +1 pt. Questions &rarr; -1 pt.</p>
+    </div>
+  </div>
+
+  <div class="content-block animate-in">
+    <p>
+      The points are summed and mapped to a
+      <span class="term" data-definition="A band is a numeric range that maps to a specific outcome — here, score ranges that map to model tiers (Haiku, Sonnet, Opus)">band</span>
+      &mdash; like wine price tiers on the list.
+    </p>
+  </div>
+
+  <div class="step-cards animate-in">
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm); background: var(--color-actor-3); color: white">0-3</div>
+      <div class="step-body">
+        <strong>Haiku</strong>
+        <p>Low complexity. Simple questions, short context, no tools. The house wine &mdash; reliable and affordable.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm); background: var(--color-actor-2); color: white">3-6.5</div>
+      <div class="step-body">
+        <strong>Sonnet</strong>
+        <p>Medium complexity. Some tools, moderate context, code blocks. A solid mid-range bottle.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-num" style="font-size: var(--text-sm); background: var(--color-actor-1); color: white">6.5+</div>
+      <div class="step-body">
+        <strong>Opus</strong>
+        <p>High complexity. Many tools, large context, imperative commands. Break out the reserve vintage.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 4 — The Backup Expert + Sticky Model
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>The Backup Expert</h3>
+    <p>
+      The heuristic scorer is
+      <span class="term" data-definition="A deterministic process always produces the same output for the same input — no randomness involved">deterministic</span>
+      &mdash; fast and predictable, but it can only count signals, not understand meaning.
+      When enabled, ccmux also asks a "senior sommelier": it sends a lightweight classification request to Haiku itself, racing against an 800ms timeout.
+    </p>
+    <p>
+      If Haiku responds in time and its
+      <span class="term" data-definition="A confidence score is a numeric value representing how certain the system is about a classification, used to pick between competing recommendations">confidence score</span>
+      is higher than the heuristic's, Haiku's recommendation wins. If Haiku is slow or uncertain, the heuristic result stands. Best of both worlds.
+    </p>
+  </div>
+
+  <div class="callout callout-info animate-in">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-content">
+      <strong class="callout-title">Sticky Sessions Prevent Whiplash</strong>
+      <p>
+        Once ccmux picks a model for your session, it
+        <span class="term" data-definition="A cache is temporary storage that saves a computed result so it can be reused without recalculating, trading memory for speed">caches</span>
+        that choice (keyed by
+        <span class="term" data-definition="HMAC (Hash-based Message Authentication Code) is a cryptographic function that creates a unique fingerprint of data, used here to create a stable session key from request signals">HMAC</span>
+        of session signals) with a
+        <span class="term" data-definition="TTL (Time To Live) is a duration after which a cached value expires and must be recomputed — here, 2 hours">TTL</span>
+        of 2 hours. This is called a
+        <span class="term" data-definition="A sticky session is a routing pattern where once a client is assigned to a particular backend, all subsequent requests from that client go to the same backend">sticky session</span>.
+        It prevents jarring mid-conversation model switches where you suddenly go from Opus-quality answers to Haiku-quality answers.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 5 — Code Translation of Heuristic Scorer
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Under the Hood</h3>
+    <p>
+      Here is the actual scoring function. Each signal contributes points, they are summed, clamped to a 0&ndash;10 range, and converted to a
+      <span class="term" data-definition="A token band is a numeric range for estimated input token count that maps to a point value (e.g., under 500 tokens = 0 points, 500-2k = 1 point)">token band</span>.
+    </p>
+  </div>
+
+  <div class="translation-block animate-in">
+    <div class="translation-code">
+      <span class="translation-label">src/classifier/heuristic.ts:119-140</span>
+      <pre><code><span class="code-keyword">const</span> <span class="code-property">tokenContribution</span> = <span class="code-function">tokenBand</span>(<span class="code-property">signals</span>.<span class="code-property">estInputTokens</span>);
+<span class="code-keyword">const</span> <span class="code-property">toolContribution</span> = <span class="code-function">Math.min</span>(
+  <span class="code-property">signals</span>.<span class="code-property">tools</span>.<span class="code-property">length</span> * <span class="code-property">WEIGHTS</span>.<span class="code-property">toolBreadthFactor</span>,
+  <span class="code-property">WEIGHTS</span>.<span class="code-property">toolBreadthCap</span>,
+);
+<span class="code-keyword">const</span> <span class="code-property">codeContribution</span> = <span class="code-function">Math.min</span>(
+  <span class="code-function">countCodeFences</span>(<span class="code-property">input</span>.<span class="code-property">body</span>) * <span class="code-property">WEIGHTS</span>.<span class="code-property">codeBlockFactor</span>,
+  <span class="code-property">WEIGHTS</span>.<span class="code-property">codeBlockCap</span>,
+);
+<span class="code-keyword">const</span> <span class="code-property">phrasingContribution</span> = <span class="code-function">phrasingDelta</span>(<span class="code-function">lastUserText</span>(<span class="code-property">input</span>.<span class="code-property">body</span>));
+<span class="code-keyword">const</span> <span class="code-property">fileContribution</span> = <span class="code-function">Math.min</span>(
+  <span class="code-property">signals</span>.<span class="code-property">fileRefCount</span> * <span class="code-property">WEIGHTS</span>.<span class="code-property">filePathFactor</span>,
+  <span class="code-property">WEIGHTS</span>.<span class="code-property">filePathCap</span>,
+);
+
+<span class="code-keyword">const</span> <span class="code-property">rawScore</span> =
+  <span class="code-property">tokenContribution</span> + <span class="code-property">toolContribution</span> + <span class="code-property">codeContribution</span> +
+  <span class="code-property">phrasingContribution</span> + <span class="code-property">fileContribution</span>;
+<span class="code-keyword">const</span> <span class="code-property">score</span> = <span class="code-function">clamp</span>(<span class="code-property">rawScore</span>, <span class="code-number">0</span>, <span class="code-number">10</span>);
+<span class="code-keyword">const</span> <span class="code-property">suggestedModel</span> = <span class="code-function">bandFromScore</span>(<span class="code-property">score</span>);</code></pre>
+    </div>
+    <div class="translation-english">
+      <span class="translation-label">PLAIN ENGLISH</span>
+      <div class="translation-lines">
+        <p class="tl">Look up the
+          <span class="term" data-definition="A token band is a numeric range for estimated input token count that maps to a point value (e.g., under 500 tokens = 0 points, 500-2k = 1 point)">token band</span>
+          (0&ndash;3 points based on input size).</p>
+        <p class="tl">Count unique tools &times; 0.5, but cap at 3 points.</p>
+        <p class="tl">Count code blocks &times; 0.3, cap at 2 points.</p>
+        <p class="tl">Check if the last message starts with an imperative verb (+1) or is a question (-1).</p>
+        <p class="tl">Count file references &times; 0.4, cap at 2 points.</p>
+        <p class="tl">Add up all the scores.</p>
+        <p class="tl">Clamp to 0&ndash;10 range so no single outlier dominates.</p>
+        <p class="tl">Convert score to model: under 3 = Haiku, 3&ndash;6.5 = Sonnet, over 6.5 = Opus.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-accent animate-in">
+    <div class="callout-icon">&#127863;</div>
+    <div class="callout-content">
+      <strong class="callout-title">Trained Palate, Not a Crystal Ball</strong>
+      <p>
+        The heuristic scorer is like a sommelier's instinct &mdash; it uses observable signals (what it can see on the label) to make a fast, good-enough call.
+        It doesn't read the full message, just like a sommelier doesn't taste every bottle before recommending it.
+        When the
+        <span class="term" data-definition="To escalate means to bump a request up to a more capable (and more expensive) model tier when the current tier is insufficient">escalate</span>
+        rules or the Haiku classifier override it, that is the senior sommelier stepping in.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 6 — Quiz
+       ============================================================ -->
+  <div class="content-block animate-in">
+    <h3>Check Your Understanding</h3>
+    <p>Apply what you learned. Work through each scenario before choosing.</p>
+  </div>
+
+  <div class="quiz-container animate-in" id="quiz-module4">
+
+    <!-- Question 1 -->
+    <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Correct. Token count 1000 (500-2k) = 1 pt. Tools 4 x 0.5 = 2 pts. Code blocks 2 x 0.3 = 0.6 pts. Imperative verb 'Write' = +1 pt. Total: 4.6 -- squarely in the Sonnet band (3-6.5)." data-explanation-wrong="Work it out: tokens 1000 (in the 500-2k band) = 1 pt. Tools: 4 x 0.5 = 2 pts. Code: 2 x 0.3 = 0.6 pts. Phrasing: 'Write' is imperative = +1 pt. No file refs = 0 pts. Total: 1 + 2 + 0.6 + 1 + 0 = 4.6. That falls in the 3-6.5 Sonnet range.">
+      <h3 class="quiz-question">A request has 1,000 tokens, 4 tools, 2 code blocks, no file refs, and starts with "Write a function..." What is the approximate heuristic score and which model?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>About 2.6 &mdash; Haiku range</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>About 4.6 &mdash; Sonnet range</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>About 7.1 &mdash; Opus range</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 2 -->
+    <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Exactly. Rules are checked top-to-bottom and first match wins. 'plan-to-opus' is rule #1, and planMode is true, so it fires immediately. The frustration rule at #4 is never reached." data-explanation-wrong="Remember: rules are checked top-to-bottom and the FIRST match wins. Plan mode is checked at rule #1 (plan-to-opus). Since planMode is true, that rule fires immediately. The frustration-escalate rule at position #4 never gets evaluated.">
+      <h3 class="quiz-question">The balanced recipe has 4 rules. A request comes in that is in plan mode AND has frustration detected. Which rule fires?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>plan-to-opus &mdash; it is first in the list, and first-match-wins</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>frustration-escalate &mdash; frustration signals always take priority</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Both fire and the higher tier wins</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <!-- Question 3 -->
+    <div class="quiz-question-block" data-correct="option-c" data-explanation-right="Right. Sticky sessions cache the model choice for the session (2-hour TTL). Even though the 4th exchange scores as Haiku-level, the cached Sonnet decision holds. No mid-conversation whiplash." data-explanation-wrong="Think about sticky sessions: once ccmux picks a model, it caches that choice (keyed by HMAC of session signals) for 2 hours. The 4th exchange still falls within that sticky window, so the original Sonnet selection holds -- preventing jarring quality drops mid-conversation.">
+      <h3 class="quiz-question">After 3 exchanges in a session, ccmux picks Sonnet. On the 4th exchange, the heuristic scores the request as Haiku-level. What model is used?</h3>
+      <div class="quiz-options">
+        <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Haiku &mdash; the heuristic score determines the model each time</span>
+        </button>
+        <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Opus &mdash; ccmux always escalates when uncertain</span>
+        </button>
+        <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+          <div class="quiz-option-radio"></div>
+          <span>Sonnet &mdash; sticky session caches the choice for the session</span>
+        </button>
+      </div>
+      <div class="quiz-feedback"></div>
+    </div>
+
+    <button class="quiz-check-btn" onclick="checkQuiz('quiz-module4')">Check Answers</button>
+    <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module4')">Try Again</button>
+  </div>
+
+</section>

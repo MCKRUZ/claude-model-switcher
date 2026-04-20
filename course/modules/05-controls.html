@@ -1,0 +1,294 @@
+<section class="module" id="module-5">
+  <div class="module-content">
+
+    <!-- ── MODULE HEADER ──────────────────────────────────────── -->
+    <div class="module-header animate-in">
+      <span class="module-number">05</span>
+      <h2 class="module-title">Take the Wheel</h2>
+      <p class="module-subtitle">CLI commands, configuration, and making ccmux yours</p>
+    </div>
+
+    <!-- ── SCREEN 1: THE CONTROL PANEL — CLI COMMANDS ─────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">The Control Panel</h3>
+      <p class="animate-in">
+        A car dashboard puts every control within reach. ccmux's
+        <span class="term" data-definition="Command-Line Interface: a text-based tool you run in a terminal, as opposed to a graphical application">CLI</span>
+        works the same way -- eight commands that cover everything from first-time setup to ongoing tuning.
+      </p>
+
+      <div class="badge-list animate-in">
+        <div class="badge-item">
+          <code class="badge-code">ccmux init</code>
+          <span class="badge-desc"><span class="term" data-definition="Scaffold means to auto-generate a starter project structure or config file with sensible defaults, so you do not have to write it from scratch">Scaffold</span> a config file with a pre-built <span class="term" data-definition="A recipe is a pre-configured policy template (balanced, aggressive, or conservative) that provides a ready-made set of routing rules">recipe</span></span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux run -- claude</code>
+          <span class="badge-desc">Start proxy, run Claude through it, tear down on exit</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux start</code>
+          <span class="badge-desc">Start the proxy as a standalone background server</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux status</code>
+          <span class="badge-desc">Check proxy health, model availability, config validation</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux report</code>
+          <span class="badge-desc">Summarize routing decisions (filter by time, group by model)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux explain</code>
+          <span class="badge-desc">Dry-run a JSON request through the pipeline without sending it</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux dashboard</code>
+          <span class="badge-desc">Launch a visual analytics <span class="term" data-definition="A dashboard is a single-page visual interface that displays real-time metrics, charts, and status indicators at a glance">dashboard</span> in your browser</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">ccmux tune</code>
+          <span class="badge-desc">Suggest policy changes based on your decision log patterns</span>
+        </div>
+      </div>
+
+      <div class="callout callout-info animate-in">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-content">
+          <strong class="callout-title">You Don't Need to Understand the Engine</strong>
+          <p>Like a car dashboard, these commands are grouped by purpose: gauges (<code>status</code>, <code>report</code>) tell you what is happening, controls (<code>tune</code>, <code>explain</code>) let you adjust behavior, and presets (<code>init</code> with a recipe) get you driving without tweaking every knob.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 2: THE CONFIG FILE — CODE TRANSLATION ──────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">The Config File</h3>
+      <p class="animate-in">
+        This is what lives inside <code>~/.ccmux/config.yml</code>. Every setting has a sensible default -- you only override what you need.
+      </p>
+
+      <div class="translation-block animate-in">
+        <div class="translation-code">
+          <span class="translation-label">~/.ccmux/config.yml</span>
+<code><span class="code-line"><span class="code-property">port</span>: <span class="code-number">7879</span></span>
+<span class="code-line"><span class="code-property">mode</span>: <span class="code-string">live</span></span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">rules</span>:</span>
+<span class="code-line">  - <span class="code-property">id</span>: <span class="code-string">plan-to-opus</span></span>
+<span class="code-line">    <span class="code-property">when</span>: { <span class="code-property">planMode</span>: <span class="code-keyword">true</span> }</span>
+<span class="code-line">    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">opus</span> }</span>
+<span class="code-line">  - <span class="code-property">id</span>: <span class="code-string">trivial-to-haiku</span></span>
+<span class="code-line">    <span class="code-property">when</span>:</span>
+<span class="code-line">      <span class="code-property">all</span>:</span>
+<span class="code-line">        - { <span class="code-property">messageCount</span>: { <span class="code-property">lt</span>: <span class="code-number">5</span> } }</span>
+<span class="code-line">        - { <span class="code-property">toolUseCount</span>: { <span class="code-property">eq</span>: <span class="code-number">0</span> } }</span>
+<span class="code-line">        - { <span class="code-property">estInputTokens</span>: { <span class="code-property">lt</span>: <span class="code-number">2000</span> } }</span>
+<span class="code-line">    <span class="code-property">then</span>: { <span class="code-property">choice</span>: <span class="code-string">haiku</span> }</span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">classifier</span>:</span>
+<span class="code-line">  <span class="code-property">enabled</span>: <span class="code-keyword">true</span></span>
+<span class="code-line">  <span class="code-property">model</span>: <span class="code-string">claude-haiku-4-5-20251001</span></span>
+<span class="code-line">  <span class="code-property">timeoutMs</span>: <span class="code-number">800</span></span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">stickyModel</span>:</span>
+<span class="code-line">  <span class="code-property">enabled</span>: <span class="code-keyword">true</span></span>
+<span class="code-line">  <span class="code-property">sessionTtlMs</span>: <span class="code-number">7200000</span></span>
+<span class="code-line">&nbsp;</span>
+<span class="code-line"><span class="code-property">logging</span>:</span>
+<span class="code-line">  <span class="code-property">content</span>: <span class="code-string">hashed</span></span></code>
+        </div>
+        <div class="translation-english">
+          <span class="translation-label">Plain English</span>
+          <div class="translation-lines">
+            <div class="tl">Listen on <span class="term" data-definition="A port is a numbered endpoint (0-65535) on your computer that a server binds to in order to receive network connections. Port 7879 is ccmux's default.">port</span> 7879 (with automatic fallback if busy).</div>
+            <div class="tl">Run in <span class="term" data-definition="In live mode, ccmux actively routes requests to the chosen model. In shadow mode, it only logs what it WOULD have done without changing anything.">live mode</span> -- actually route requests (vs <span class="term" data-definition="Shadow mode lets ccmux log routing decisions without actually changing the model. Use it to preview cost savings and catch bad rules before they affect real work.">shadow mode</span> which only logs).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Rules section -- the same balanced recipe we saw in Module 4.</div>
+            <div class="tl">If plan mode is active, always use Opus.</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">If the conversation is short (fewer than 5 messages),</div>
+            <div class="tl">has no tool calls,</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">and estimated input is under 2000 tokens --</div>
+            <div class="tl">send it to Haiku. AND means all three conditions must be true.</div>
+            <div class="tl">route to Haiku (the cheapest model).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Enable the Haiku classifier as backup,</div>
+            <div class="tl">using the Haiku model for classification calls,</div>
+            <div class="tl">with an 800ms timeout (if it takes longer, fall back to heuristics).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Cache model choices per session --</div>
+            <div class="tl">once a model is picked for a session, stick with it</div>
+            <div class="tl">for 2 hours (avoids jarring mid-conversation switches).</div>
+            <div class="tl">&nbsp;</div>
+            <div class="tl">Log decisions with hashed content (privacy-safe -- no raw messages stored).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 3: PICK YOUR STYLE — RECIPE COMPARISON ─────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">Pick Your Style</h3>
+      <p class="animate-in">
+        When you run <code>ccmux init</code>, you choose one of three recipes. Think of them as driving modes: eco, sport, and comfort. Each generates a complete <span class="term" data-definition="YAML (YAML Ain't Markup Language) is a human-readable data format used for configuration files. It uses indentation instead of brackets to show structure.">YAML</span> <span class="term" data-definition="A config (configuration) file stores settings that control how a program behaves, separate from the program's code itself">config</span> you can customize later.
+      </p>
+
+      <div class="pattern-cards animate-in">
+        <div class="pattern-card" style="border-top: 3px solid var(--color-actor-5)">
+          <div class="pattern-icon" style="background: #E8F5EE">&#9878;&#65039;</div>
+          <h4 class="pattern-title">Balanced (default)</h4>
+          <p class="pattern-desc">Opus for planning, Haiku for trivial turns, escalate on retries and frustration. Good starting point for most users.</p>
+        </div>
+        <div class="pattern-card" style="border-top: 3px solid var(--color-actor-4)">
+          <div class="pattern-icon" style="background: #FDF5E0">&#128176;</div>
+          <h4 class="pattern-title">Aggressive</h4>
+          <p class="pattern-desc">Maximum cost savings. Haiku by default, Sonnet for tool use, Opus only for plan mode. Best if you are optimizing for cost.</p>
+        </div>
+        <div class="pattern-card" style="border-top: 3px solid var(--color-actor-3)">
+          <div class="pattern-icon" style="background: #EDE8F5">&#127919;</div>
+          <h4 class="pattern-title">Conservative</h4>
+          <p class="pattern-desc">Maximum quality. Opus by default, Sonnet only for simple questions. Best for critical work where accuracy matters most.</p>
+        </div>
+      </div>
+
+      <div class="callout callout-warn animate-in">
+        <div class="callout-icon">&#9878;&#65039;</div>
+        <div class="callout-content">
+          <strong class="callout-title">Start Balanced, Then Tune</strong>
+          <p>The balanced recipe is the safest on-ramp. Run it for a week, review <code>ccmux report</code>, and then tighten or loosen rules based on what the data tells you. The <code>ccmux tune</code> command will even suggest specific changes.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 4: WATCHING THE GAUGES ─────────────────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">Watching the Gauges</h3>
+      <p class="animate-in">
+        The <code>ccmux dashboard</code> command launches a local <span class="term" data-definition="A Single-Page Application is a web app that loads once and updates dynamically without full page reloads. The ccmux dashboard is a lightweight SPA.">SPA</span> built with <span class="term" data-definition="React is a JavaScript library for building user interfaces using reusable components. The ccmux dashboard uses React for its interactive charts and real-time updates.">React</span> that shows routing activity in real time. The <code>ccmux report</code> command gives you the same data as a terminal summary.
+      </p>
+
+      <div class="callout callout-accent animate-in">
+        <div class="callout-icon">&#128161;</div>
+        <div class="callout-content">
+          <strong class="callout-title">Shadow Mode: Test Before You Commit</strong>
+          <p>Set mode to "shadow" and ccmux will log what it WOULD have done without actually changing the model. This lets you preview cost savings and catch bad rules before they affect your work.</p>
+        </div>
+      </div>
+
+      <p class="animate-in">
+        Every routing decision is recorded to a daily <span class="term" data-definition="JSON Lines format: a text file where each line is a valid JSON object. Easy to append, easy to parse line-by-line, and easy to stream.">JSONL</span> log. Here is what each entry contains:
+      </p>
+
+      <div class="badge-list animate-in">
+        <div class="badge-item">
+          <code class="badge-code">timestamp</code>
+          <span class="badge-desc">When the decision was made</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">signals</code>
+          <span class="badge-desc">All extracted signals (tokens, tools, plan mode, etc.)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">matchedRule</code>
+          <span class="badge-desc">Which rule fired (or "classifier" if no rule matched)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">chosenModel</code>
+          <span class="badge-desc">The final model selection (haiku, sonnet, or opus)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">confidence</code>
+          <span class="badge-desc">How confident the system was in its choice (0.2 to 0.85)</span>
+        </div>
+        <div class="badge-item">
+          <code class="badge-code">costEstimate</code>
+          <span class="badge-desc">Estimated cost of this request at the chosen tier</span>
+        </div>
+      </div>
+
+      <div class="callout callout-info animate-in">
+        <div class="callout-icon">&#128260;</div>
+        <div class="callout-content">
+          <strong class="callout-title"><span class="term" data-definition="Hot-reload means the application detects file changes and applies them automatically while running, without requiring a manual restart">Hot Reload</span></strong>
+          <p>Edit your config file while ccmux is running -- it watches for changes and picks them up automatically. No restart needed. Logs rotate daily with automatic <span class="term" data-definition="Log rotation is the practice of archiving old log files and starting fresh ones on a schedule (e.g., daily), preventing any single log file from growing unbounded">log rotation</span> so they never grow unbounded.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCREEN 5: QUIZ ────────────────────────────────────── -->
+    <div class="screen">
+      <h3 class="screen-heading animate-in">Check Your Understanding</h3>
+      <p class="animate-in">Scenario-based questions. Think about what you would actually do in each situation.</p>
+
+      <div class="quiz-container animate-in" id="quiz-module5">
+
+        <!-- Question 1 -->
+        <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Exactly. The balanced recipe optimizes cost for simple tasks (Haiku for trivial turns) while keeping Opus for planning and escalating on retries. It gives you savings without sacrificing quality where it matters." data-explanation-wrong="The balanced recipe is the right starting point here. It saves money on simple tasks by routing them to Haiku, but keeps Opus for planning and automatically escalates when things go wrong -- giving you both cost savings and quality protection.">
+          <h3 class="quiz-question">You want to save maximum money but you are worried about quality dropping on important tasks. Which recipe should you start with?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Balanced -- it optimizes cost for simple tasks while keeping Opus for planning and escalating when things go wrong</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Aggressive -- maximum savings is what you asked for</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Conservative -- it guarantees quality by using Opus for everything</span>
+            </button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+
+        <!-- Question 2 -->
+        <div class="quiz-question-block" data-correct="option-b" data-explanation-right="Correct. Shadow mode logs every routing decision without actually changing the model. You can review the report, see projected savings, and catch any bad rules -- all without risking your real work." data-explanation-wrong="The key phrase is 'without actually changing your model.' Shadow mode (mode: shadow) does exactly that -- it runs the full decision pipeline but only logs what it WOULD have done. No actual routing changes until you switch to live mode.">
+          <h3 class="quiz-question">You just installed ccmux and want to see what it would do without actually changing your model. What do you set?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Run <code>ccmux explain</code> on every request manually</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Set <code>mode: shadow</code> -- it logs decisions without routing</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Set <code>classifier.enabled: false</code> to disable automatic routing</span>
+            </button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+
+        <!-- Question 3 -->
+        <div class="quiz-question-block" data-correct="option-a" data-explanation-right="Right. If 80% of requests go to Haiku but retries are high, the trivial-to-haiku rule is catching requests that are too complex for Haiku. Tightening the rule conditions (e.g., lower the token threshold or add stricter tool-use checks) will route fewer borderline requests to the cheapest model." data-explanation-wrong="The problem is that too many requests are being classified as trivial and sent to Haiku, but some of them are actually too complex for it -- causing retries. The fix is to make the trivial-to-haiku rule stricter so only truly simple requests get the cheapest model.">
+          <h3 class="quiz-question">Your report shows 80% of requests went to Haiku but you are getting too many retries. What should you adjust?</h3>
+          <div class="quiz-options">
+            <button class="quiz-option" data-value="option-a" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Make the trivial-to-haiku rule stricter so fewer borderline requests go to the cheapest model</span>
+            </button>
+            <button class="quiz-option" data-value="option-b" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Switch to the conservative recipe -- Opus handles everything</span>
+            </button>
+            <button class="quiz-option" data-value="option-c" onclick="selectOption(this)">
+              <div class="quiz-option-radio"></div>
+              <span>Disable the classifier so only rules make decisions</span>
+            </button>
+          </div>
+          <div class="quiz-feedback"></div>
+        </div>
+
+        <button class="quiz-check-btn" onclick="checkQuiz('quiz-module5')">Check Answers</button>
+        <button class="quiz-reset-btn" onclick="resetQuiz('quiz-module5')">Try Again</button>
+      </div>
+    </div>
+
+  </div>
+</section>

@@ -4,7 +4,6 @@ import type { RuleStats } from '../../src/tune/analyze.js';
 
 function mkStats(over: Partial<RuleStats> & { ruleId: string }): RuleStats {
   return {
-    ruleId: over.ruleId,
     fires: 0,
     outcomeCounts: {
       continued: 0,
