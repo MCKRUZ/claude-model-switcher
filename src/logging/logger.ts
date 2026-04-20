@@ -21,9 +21,10 @@ type WithMaybeHeaders = { headers?: Record<string, string | string[] | undefined
 function serializeReq(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value;
   const obj = value as Record<string, unknown>;
-  const headers = (obj as WithMaybeHeaders).headers;
-  if (!headers || typeof headers !== 'object') return obj;
-  return { ...obj, headers: sanitizeHeaders(headers) };
+  const { raw: _raw, ...rest } = obj;
+  const headers = (rest as WithMaybeHeaders).headers;
+  if (!headers || typeof headers !== 'object') return rest;
+  return { ...rest, headers: sanitizeHeaders(headers) };
 }
 
 export interface LoggerOptions {

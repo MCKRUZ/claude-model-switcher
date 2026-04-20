@@ -1,6 +1,7 @@
 // `ccmux run -- <cmd...>` handler — thin CLI wrapper around runWrapper.
 
 import { runWrapper } from '../lifecycle/wrapper.js';
+import { resolvePaths } from '../config/paths.js';
 
 export interface RunCmdOptions {
   readonly childCmd: string;
@@ -37,6 +38,7 @@ export async function runRun(opts: RunCmdOptions): Promise<number> {
     const result = await runWrapper({
       childCmd: opts.childCmd,
       childArgs: opts.childArgs,
+      logDir: resolvePaths().logDir,
       ...(opts.configPath ? { configPath: opts.configPath } : {}),
     });
     return result.exitCode;
