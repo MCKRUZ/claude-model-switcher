@@ -2,7 +2,7 @@ import type { Logger } from 'pino';
 import type { CcmuxConfig } from '../config/schema.js';
 import type { Signals, SessionContext } from '../signals/types.js';
 import type { PolicyResult, Rule } from '../policy/dsl.js';
-import type { DecisionRecord, DecisionSource } from '../decisions/types.js';
+import type { DecisionRecord, DecisionSource, UsageFields } from '../decisions/types.js';
 import type { Tier } from '../classifier/types.js';
 import { extractSignals } from '../signals/extract.js';
 import { loadRules } from '../policy/load.js';
@@ -126,6 +126,8 @@ export function buildDecisionRecord(
   route: RouteResult,
   sessionId: string,
   upstreamLatencyMs: number,
+  usage: UsageFields | null = null,
+  costEstimateUsd: number | null = null,
 ): DecisionRecord {
   const s = route.signals;
   return {
@@ -149,8 +151,8 @@ export function buildDecisionRecord(
     chosen_by: route.chosenBy,
     forwarded_model: route.forwardedModel,
     upstream_latency_ms: upstreamLatencyMs,
-    usage: null,
-    cost_estimate_usd: null,
+    usage,
+    cost_estimate_usd: costEstimateUsd,
     classifier_cost_usd: null,
     mode: 'live',
     shadow_choice: null,

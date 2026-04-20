@@ -4,6 +4,10 @@ import type { Logger } from 'pino';
 import { Writable } from 'node:stream';
 import type { ConfigStore } from '../config/watcher.js';
 import type { DecisionLogWriter } from '../decisions/log.js';
+import type { CostContext } from '../decisions/cost.js';
+import { computeCostUsd } from '../decisions/cost.js';
+import type { UsageInfo } from './usage-tap.js';
+import { createUsageTap, extractContentType, type UsageTapResult } from './usage-tap.js';
 import { filterRequestHeaders, filterResponseHeaders } from './headers.js';
 import { parseForSignals, spliceModel } from './body-splice.js';
 import { streamRequest, type UpstreamResponseInfo } from './upstream.js';
@@ -16,6 +20,7 @@ export interface HotPathDeps {
   readonly logger: Logger;
   readonly configStore?: ConfigStore;
   readonly decisionWriter?: DecisionLogWriter;
+  readonly costContext?: CostContext;
 }
 
 export function makeHotPathHandler(deps: HotPathDeps) {
@@ -44,17 +49,25 @@ export function makeHotPathHandler(deps: HotPathDeps) {
     void reply.hijack();
     const startMs = Date.now();
     const abortHandle = wireAbort(req, new AbortController());
+    let usageTap: UsageTapResult | null = null;
     try {
       await streamRequest(
         { method: 'POST', path, headers: outHeaders, body: routed.body, signal: abortHandle.controller.signal },
-        (info) => writeResponseHead(reply, info, deps.logger),
+        (info) => {
+          const downstream = writeResponseHead(reply, info, deps.logger);
+          const ct = extractContentType(info.rawHeaders);
+          const tap = createUsageTap(downstream, ct);
+          usageTap = tap;
+          return tap.writable;
+        },
       );
       abortHandle.markComplete();
     } catch (err: unknown) {
       handleStreamError(reply, err, deps.logger);
     } finally {
       abortHandle.dispose();
-      logDecision(req, routed.route, deps.decisionWriter, Date.now() - startMs);
+      const usageInfo = await resolveUsage(usageTap);
+      logDecision(req, routed.route, deps, usageInfo, Date.now() - startMs);
     }
   };
 }
@@ -95,15 +108,27 @@ function replaceContentLength(rawHeaders: string[], newLength: number): string[]
   return result;
 }
 
+const USAGE_TIMEOUT_MS = 5000;
+
+async function resolveUsage(tap: UsageTapResult | null): Promise<UsageInfo | null> {
+  if (!tap) return null;
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), USAGE_TIMEOUT_MS));
+  return Promise.race([tap.usage, timeout]);
+}
+
 function logDecision(
   req: FastifyRequest,
   route: RouteResult | null,
-  writer: DecisionLogWriter | undefined,
+  deps: HotPathDeps,
+  usageInfo: UsageInfo | null,
   latencyMs: number,
 ): void {
-  if (!route || !writer) return;
+  if (!route || !deps.decisionWriter) return;
   const sessionId = (req.headers['x-claude-code-session-id'] as string) ?? 'unknown';
-  writer.append(buildDecisionRecord(route, sessionId, latencyMs));
+  const usage = usageInfo?.usage ?? null;
+  const model = usageInfo?.upstreamModel ?? route.forwardedModel;
+  const cost = deps.costContext ? computeCostUsd(model, usage, deps.costContext) : null;
+  deps.decisionWriter.append(buildDecisionRecord(route, sessionId, latencyMs, usage, cost));
 }
 
 function buildUpstreamPath(url: string): string {

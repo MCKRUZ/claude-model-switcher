@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 import type { CcmuxConfig } from '../config/schema.js';
 import type { ConfigStore } from '../config/watcher.js';
 import type { DecisionLogWriter } from '../decisions/log.js';
+import { createCostContext } from '../decisions/cost.js';
 import { makeHotPathHandler } from './hot-path.js';
 import { passThrough } from './pass-through.js';
 import { makeHealthHandler } from './health.js';
@@ -89,8 +90,10 @@ function registerSecurityHooks(app: FastifyInstance, opts: ProxyServerOptions): 
 }
 
 function registerRoutes(app: FastifyInstance, opts: ProxyServerOptions): void {
+  const costCtx = createCostContext(opts.config.pricing, opts.logger);
   const hot = makeHotPathHandler({
     logger: opts.logger,
+    costContext: costCtx,
     ...(opts.configStore !== undefined ? { configStore: opts.configStore } : {}),
     ...(opts.decisionWriter !== undefined ? { decisionWriter: opts.decisionWriter } : {}),
   });
