@@ -1,7 +1,6 @@
 // Sequential port bind: try startPort, fall back on EADDRINUSE up to maxAttempts times.
 // Calls `server.listen` directly — no TOCTOU helper server — per plan §6.6.
 
-import type { AddressInfo } from 'node:net';
 import type { FastifyInstance } from 'fastify';
 
 export interface BindResult {
@@ -58,7 +57,7 @@ export async function bindWithFallback(
 function readBoundPort(server: FastifyInstance, fallback: number): number {
   const addr = server.server.address();
   if (addr && typeof addr === 'object') {
-    return (addr as AddressInfo).port;
+    return addr.port;
   }
   return fallback;
 }

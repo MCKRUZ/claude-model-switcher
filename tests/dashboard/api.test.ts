@@ -124,7 +124,7 @@ describe('/api/summary', () => {
   });
 
   it('computes routing distribution per forwarded model', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/summary' });
+    const res = await server.inject({ method: 'GET', url: '/api/summary?since=2020-01-01' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.routingDistribution).toBeDefined();
@@ -134,14 +134,14 @@ describe('/api/summary', () => {
   });
 
   it('computes cache-hit rate from usage.cache_read_input_tokens', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/summary' });
+    const res = await server.inject({ method: 'GET', url: '/api/summary?since=2020-01-01' });
     const body = JSON.parse(res.body);
     expect(body.cacheHitRate).toBeGreaterThan(0);
     expect(body.cacheHitRate).toBeLessThanOrEqual(1);
   });
 
   it('computes p50/p95/p99 of upstream_latency_ms', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/summary' });
+    const res = await server.inject({ method: 'GET', url: '/api/summary?since=2020-01-01' });
     const body = JSON.parse(res.body);
     expect(body.latency).toBeDefined();
     expect(body.latency.p50).toBeGreaterThan(0);
@@ -150,7 +150,7 @@ describe('/api/summary', () => {
   });
 
   it('reports cost with and without classifier overhead', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/summary' });
+    const res = await server.inject({ method: 'GET', url: '/api/summary?since=2020-01-01' });
     const body = JSON.parse(res.body);
     expect(body.totalCost).toBeGreaterThan(0);
     expect(body.classifierCost).toBeGreaterThan(0);
@@ -183,7 +183,7 @@ describe('/api/costs', () => {
   });
 
   it('returns time-bucketed cost series for hour granularity', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/costs' });
+    const res = await server.inject({ method: 'GET', url: '/api/costs?since=2020-01-01' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(Array.isArray(body.buckets)).toBe(true);
@@ -196,7 +196,7 @@ describe('/api/costs', () => {
   });
 
   it('accepts bucket=day query parameter', async () => {
-    const res = await server.inject({ method: 'GET', url: '/api/costs?bucket=day' });
+    const res = await server.inject({ method: 'GET', url: '/api/costs?bucket=day&since=2020-01-01' });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.buckets.length).toBeGreaterThan(0);

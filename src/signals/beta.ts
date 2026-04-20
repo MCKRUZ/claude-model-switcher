@@ -3,7 +3,6 @@
 type HeaderValue = string | readonly string[] | undefined;
 
 function toLines(raw: HeaderValue): readonly string[] {
-  if (raw === undefined) return [];
   if (typeof raw === 'string') return [raw];
   if (Array.isArray(raw)) return raw.filter((v): v is string => typeof v === 'string');
   return [];

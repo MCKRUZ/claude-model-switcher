@@ -118,7 +118,7 @@ function registerExplain(
       const { runExplain } = await import('./explain.js');
       box.code = await runExplain({
         requestPath,
-        configPath: cmdOpts.config,
+        ...(cmdOpts.config !== undefined && { configPath: cmdOpts.config }),
         classifier: cmdOpts.classifier,
         stdout,
         stderr,

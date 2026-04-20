@@ -39,12 +39,12 @@ export function cacheHitRate(records: readonly DecisionRecord[]): number {
 function percentile(sorted: number[], p: number): number {
   const n = sorted.length;
   if (n === 0) return 0;
-  if (n === 1) return sorted[0];
+  if (n === 1) return sorted[0]!;
   const idx = p * (n - 1);
   const lower = Math.floor(idx);
   const upper = Math.ceil(idx);
-  if (lower === upper) return sorted[lower];
-  return sorted[lower] + (idx - lower) * (sorted[upper] - sorted[lower]);
+  if (lower === upper) return sorted[lower]!;
+  return sorted[lower]! + (idx - lower) * (sorted[upper]! - sorted[lower]!);
 }
 
 export function latencyPercentiles(

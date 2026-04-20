@@ -1,5 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
-import type { Logger } from 'pino';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import type { ConfigStore } from '../config/watcher.js';
 import { registerRoutes } from './api.js';
 
@@ -14,7 +13,7 @@ function isLoopbackHost(host: string | undefined): boolean {
 export interface DashboardServerOpts {
   readonly configStore: ConfigStore;
   readonly decisionLogDir: string;
-  readonly logger: Logger;
+  readonly logger: FastifyBaseLogger;
 }
 
 export function buildServer(opts: DashboardServerOpts): FastifyInstance {

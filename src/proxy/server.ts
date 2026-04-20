@@ -30,8 +30,6 @@ export async function createProxyServer(opts: ProxyServerOptions): Promise<Fasti
     disableRequestLogging: false,
   });
 
-  // Fastify types FastifyInstance with a default Logger generic; our pino
-  // logger widens its generics, so this cast keeps the local API uniform.
   const instance = app as unknown as FastifyInstance;
   registerHostGuard(instance);
   registerContentTypeParsers(instance);

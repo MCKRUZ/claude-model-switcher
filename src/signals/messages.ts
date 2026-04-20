@@ -2,14 +2,10 @@
 
 import type { AnthropicContent, ContentBlock } from '../types/anthropic.js';
 
-function isContentBlockArray(value: unknown): value is readonly ContentBlock[] {
-  return Array.isArray(value);
-}
-
 export function flattenText(content: AnthropicContent | undefined): string {
   if (content === undefined) return '';
   if (typeof content === 'string') return content;
-  if (!isContentBlockArray(content)) return '';
+  if (!Array.isArray(content)) return '';
   const parts: string[] = [];
   for (const block of content) {
     if (!block || typeof block !== 'object') continue;
@@ -56,9 +52,8 @@ export function allUserMessages(messages: readonly unknown[] | undefined): reado
 }
 
 export function contentBlocks(content: unknown): readonly ContentBlock[] {
-  if (!content || typeof content === 'string') return [];
   if (!Array.isArray(content)) return [];
-  return (content as readonly unknown[]).filter(
+  return content.filter(
     (b): b is ContentBlock => b != null && typeof b === 'object',
   );
 }

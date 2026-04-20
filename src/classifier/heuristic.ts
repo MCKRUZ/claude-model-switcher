@@ -97,11 +97,12 @@ type ValidSignals = { readonly estInputTokens: number; readonly tools: readonly 
 function validateSignals(raw: unknown): ValidSignals | null {
   if (!raw || typeof raw !== 'object') return null;
   const s = raw as Record<string, unknown>;
-  const t = s.estInputTokens, f = s.fileRefCount;
-  if (typeof t !== 'number' || !Number.isFinite(t) || t < 0) return null;
-  if (typeof f !== 'number' || !Number.isFinite(f) || f < 0) return null;
+  const tokens = s.estInputTokens;
+  const fileRefs = s.fileRefCount;
+  if (typeof tokens !== 'number' || !Number.isFinite(tokens) || tokens < 0) return null;
+  if (typeof fileRefs !== 'number' || !Number.isFinite(fileRefs) || fileRefs < 0) return null;
   if (!Array.isArray(s.tools)) return null;
-  return { estInputTokens: t, tools: s.tools as readonly string[], fileRefCount: f };
+  return { estInputTokens: tokens, tools: s.tools as readonly string[], fileRefCount: fileRefs };
 }
 
 export class HeuristicClassifier implements Classifier {

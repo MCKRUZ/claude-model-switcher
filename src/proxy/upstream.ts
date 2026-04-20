@@ -54,7 +54,7 @@ export async function streamRequest(
 ): Promise<void> {
   const origin = resolveUpstreamOrigin();
   const agent = getUpstreamAgent();
-  lastOutboundHeaders = [...opts.headers];
+  lastOutboundHeaders = opts.headers;
   const reqOpts: Dispatcher.RequestOptions = {
     origin,
     method: opts.method as Dispatcher.HttpMethod,

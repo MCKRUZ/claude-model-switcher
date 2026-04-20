@@ -15,7 +15,7 @@ const VALID_GROUP_BY = new Set(['model', 'rule', 'hour']);
 function parseSince(raw: string | undefined): Date | undefined {
   if (!raw) return undefined;
   const d = new Date(raw);
-  if (isNaN(d.getTime())) return null as unknown as undefined;
+  if (isNaN(d.getTime())) return undefined;
   return d;
 }
 
@@ -47,7 +47,7 @@ export function registerRoutes(
     }
     const groupBy = query.group_by as 'model' | 'rule' | 'hour' | undefined;
 
-    const result = await readDecisions(decisionLogDir, { since, limit, offset });
+    const result = await readDecisions(decisionLogDir, { ...(since !== undefined && { since }), limit, offset });
 
     if (groupBy) {
       const groups: Record<string, number> = {};

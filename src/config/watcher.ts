@@ -91,10 +91,10 @@ export function startConfigWatcher(
     logger.warn({ err }, 'config watcher error');
   });
 
-  let resolveReady: () => void = () => {};
+  let resolveReady!: () => void;
   const whenReady = new Promise<void>((resolve) => {
     resolveReady = resolve;
-    watcher.once('ready', () => resolve());
+    watcher.once('ready', resolve);
   });
 
   const handle: WatcherHandle = {
