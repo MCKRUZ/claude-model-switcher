@@ -2,22 +2,30 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Logger } from 'pino';
 import { Writable } from 'node:stream';
+import type { ConfigStore } from '../config/watcher.js';
+import type { DecisionLogWriter } from '../decisions/log.js';
 import { filterRequestHeaders, filterResponseHeaders } from './headers.js';
-import { parseForSignals } from './body-splice.js';
+import { parseForSignals, spliceModel } from './body-splice.js';
 import { streamRequest, type UpstreamResponseInfo } from './upstream.js';
 import { wireAbort } from './abort.js';
 import { emitSseError } from './errors.js';
 import { passThrough } from './pass-through.js';
+import { routeRequest, buildDecisionRecord, createSessionContext, type RouteResult } from './route.js';
 
 export interface HotPathDeps {
   readonly logger: Logger;
+  readonly configStore?: ConfigStore;
+  readonly decisionWriter?: DecisionLogWriter;
 }
 
 export function makeHotPathHandler(deps: HotPathDeps) {
+  const session = createSessionContext();
+  const through = passThrough(deps);
+
   return async function hotPath(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     const ct = req.headers['content-type'] ?? '';
     if (!ct.toString().toLowerCase().includes('application/json')) {
-      await passThrough(deps)(req, reply);
+      await through(req, reply);
       return;
     }
     const raw = req.body as Buffer | undefined;
@@ -30,20 +38,15 @@ export function makeHotPathHandler(deps: HotPathDeps) {
       await reply.code(400).send({ error: 'invalid-json', message: spliced.error.message });
       return;
     }
-    const { buffer: outBody } = spliced.value;
-    const outHeaders = filterRequestHeaders(req.raw.rawHeaders).rawHeaders;
+    const routed = applyRouting(spliced.value.parsed, spliced.value.buffer, req, deps, session);
+    const outHeaders = routed.rawHeaders;
     const path = buildUpstreamPath(req.url);
     void reply.hijack();
+    const startMs = Date.now();
     const abortHandle = wireAbort(req, new AbortController());
     try {
       await streamRequest(
-        {
-          method: 'POST',
-          path,
-          headers: outHeaders,
-          body: outBody,
-          signal: abortHandle.controller.signal,
-        },
+        { method: 'POST', path, headers: outHeaders, body: routed.body, signal: abortHandle.controller.signal },
         (info) => writeResponseHead(reply, info, deps.logger),
       );
       abortHandle.markComplete();
@@ -51,8 +54,56 @@ export function makeHotPathHandler(deps: HotPathDeps) {
       handleStreamError(reply, err, deps.logger);
     } finally {
       abortHandle.dispose();
+      logDecision(req, routed.route, deps.decisionWriter, Date.now() - startMs);
     }
   };
+}
+
+interface RoutedBody {
+  readonly body: Buffer;
+  readonly rawHeaders: string[];
+  readonly route: RouteResult | null;
+}
+
+function applyRouting(
+  parsed: unknown,
+  originalBuffer: Buffer,
+  req: FastifyRequest,
+  deps: HotPathDeps,
+  session: ReturnType<typeof createSessionContext>,
+): RoutedBody {
+  const rawHeaders = filterRequestHeaders(req.raw.rawHeaders).rawHeaders;
+  if (!deps.configStore) return { body: originalBuffer, rawHeaders, route: null };
+  const config = deps.configStore.getCurrent();
+  const headers = req.headers as Readonly<Record<string, string | string[] | undefined>>;
+  const route = routeRequest(parsed, headers, config, session, deps.logger);
+  if (route.forwardedModel === route.originalModel) {
+    return { body: originalBuffer, rawHeaders, route };
+  }
+  const body = spliceModel(parsed, route.forwardedModel);
+  return { body, rawHeaders: replaceContentLength(rawHeaders, body.length), route };
+}
+
+function replaceContentLength(rawHeaders: string[], newLength: number): string[] {
+  const result = [...rawHeaders];
+  for (let i = 0; i < result.length - 1; i += 2) {
+    if (result[i]!.toLowerCase() === 'content-length') {
+      result[i + 1] = String(newLength);
+      return result;
+    }
+  }
+  return result;
+}
+
+function logDecision(
+  req: FastifyRequest,
+  route: RouteResult | null,
+  writer: DecisionLogWriter | undefined,
+  latencyMs: number,
+): void {
+  if (!route || !writer) return;
+  const sessionId = (req.headers['x-claude-code-session-id'] as string) ?? 'unknown';
+  writer.append(buildDecisionRecord(route, sessionId, latencyMs));
 }
 
 function buildUpstreamPath(url: string): string {

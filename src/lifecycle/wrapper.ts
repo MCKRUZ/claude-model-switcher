@@ -11,6 +11,7 @@ import { loadConfig } from '../config/loader.js';
 import { resolvePaths, ensureDirs, type CcmuxPaths } from '../config/paths.js';
 import { startConfigWatcher, type WatcherHandle } from '../config/watcher.js';
 import { createLogger } from '../logging/logger.js';
+import { createDecisionLogWriter, type DecisionLogWriter } from '../decisions/log.js';
 import { createProxyServer } from '../proxy/server.js';
 import { listenWithFallback } from './ports.js';
 import { generateProxyToken } from './token.js';
@@ -37,6 +38,7 @@ interface ProxyHandle {
   readonly port: number;
   readonly watcher: WatcherHandle;
   readonly logger: Logger;
+  readonly decisionWriter: DecisionLogWriter;
 }
 
 const DEFAULT_HEALTHZ_TIMEOUT_MS = 5000;
@@ -70,18 +72,24 @@ async function startWrapperProxy(opts: WrapperOptions, _token: string): Promise<
     opts.logDir ? { destination: 'file', logDir: opts.logDir } : { destination: 'stderr' },
   );
   const { store, handle: watcher } = startConfigWatcher(configPath, config, logger);
-  // The proxy is not token-gated: Claude Code has no outbound-header knob, so
-  // enforcement would break the happy path. The token is injected into the
-  // child env only (defense-in-depth per plan §6.8); the proxy's 127.0.0.1-only
-  // bind is the real containment boundary.
+  const decisionWriter = createDecisionLogWriter({
+    dir: paths.decisionLogDir,
+    rotation: 'daily',
+    maxBytes: 10 * 1024 * 1024,
+    retentionDays: 30,
+    fsync: false,
+    logger,
+    clock: () => new Date(),
+  });
   const app = await createProxyServer({
     port: config.port,
     logger,
     config,
     configStore: store,
+    decisionWriter,
   });
   const port = await listenWithFallback(app, '127.0.0.1', config.port, 20);
-  return { app, port, watcher, logger };
+  return { app, port, watcher, logger, decisionWriter };
 }
 
 export function buildChildEnv(
@@ -201,6 +209,11 @@ function installSignalForwarding(
 }
 
 async function teardownProxy(proxy: ProxyHandle): Promise<void> {
+  try {
+    await proxy.decisionWriter.close();
+  } catch {
+    // best-effort
+  }
   try {
     await proxy.watcher.stop();
   } catch {

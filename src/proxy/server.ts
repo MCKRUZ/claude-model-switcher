@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
 import type { CcmuxConfig } from '../config/schema.js';
 import type { ConfigStore } from '../config/watcher.js';
+import type { DecisionLogWriter } from '../decisions/log.js';
 import { makeHotPathHandler } from './hot-path.js';
 import { passThrough } from './pass-through.js';
 import { makeHealthHandler } from './health.js';
@@ -17,6 +18,7 @@ export interface ProxyServerOptions {
   readonly requireProxyToken?: boolean;
   readonly proxyToken?: string;
   readonly bodyLimit?: number;
+  readonly decisionWriter?: DecisionLogWriter;
 }
 
 const DEFAULT_BODY_LIMIT = 20 * 1024 * 1024;
@@ -87,7 +89,11 @@ function registerSecurityHooks(app: FastifyInstance, opts: ProxyServerOptions): 
 }
 
 function registerRoutes(app: FastifyInstance, opts: ProxyServerOptions): void {
-  const hot = makeHotPathHandler({ logger: opts.logger });
+  const hot = makeHotPathHandler({
+    logger: opts.logger,
+    ...(opts.configStore !== undefined ? { configStore: opts.configStore } : {}),
+    ...(opts.decisionWriter !== undefined ? { decisionWriter: opts.decisionWriter } : {}),
+  });
   const through = passThrough({ logger: opts.logger });
   const health = makeHealthHandler({
     startTimeMs: Date.now(),

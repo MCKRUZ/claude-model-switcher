@@ -22,3 +22,8 @@ export function parseForSignals(raw: Buffer): Result<SpliceOutput, SpliceError> 
   const buffer = Buffer.from(JSON.stringify(parsed));
   return ok({ parsed, buffer });
 }
+
+export function spliceModel(parsed: unknown, modelId: string): Buffer {
+  const body = { ...(parsed as Record<string, unknown>), model: modelId };
+  return Buffer.from(JSON.stringify(body));
+}
