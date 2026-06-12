@@ -30,7 +30,7 @@ describe('buildDecisionRecord', () => {
       now: NOW,
       sessionId: 's', requestHash: 'h', extractedSignals: SIGNALS,
       policyResult: policy, classifierResult: null, stickyHit: false,
-      chosenModel: 'm', chosenBy: 'policy', forwardedModel: 'm',
+      chosenModel: 'm', chosenBy: 'policy', forwardedModel: 'm', upstreamModel: null,
       mode: 'live', shadowChoice: null, upstreamLatencyMs: 0,
       usage: null, costEstimateUsd: null, classifierCostUsd: null, contentMode: 'hashed',
     });
@@ -44,7 +44,7 @@ describe('buildDecisionRecord', () => {
       sessionId: 's', requestHash: 'h', extractedSignals: SIGNALS,
       policyResult: { kind: 'abstain' },
       classifierResult: null, stickyHit: false,
-      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm',
+      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm', upstreamModel: null,
       mode: 'live', shadowChoice: null, upstreamLatencyMs: 0,
       usage: null, costEstimateUsd: null, classifierCostUsd: null, contentMode: 'hashed',
     });
@@ -59,7 +59,7 @@ describe('buildDecisionRecord', () => {
       now: NOW,
       sessionId: 's', requestHash: 'h', extractedSignals: SIGNALS,
       policyResult: { kind: 'abstain' }, classifierResult: cr, stickyHit: false,
-      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm',
+      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm', upstreamModel: null,
       mode: 'live', shadowChoice: null, upstreamLatencyMs: 0,
       usage: null, costEstimateUsd: null, classifierCostUsd: null, contentMode: 'hashed',
     });
@@ -77,6 +77,7 @@ describe('buildDecisionRecord', () => {
       chosenModel: 'claude-sonnet-4-5',          // client-requested
       chosenBy: 'shadow',
       forwardedModel: 'claude-sonnet-4-5',       // what actually went upstream
+      upstreamModel: null,
       mode: 'shadow',
       shadowChoice: 'claude-opus-4-7',           // what we WOULD have done
       upstreamLatencyMs: 0,
@@ -92,7 +93,7 @@ describe('buildDecisionRecord', () => {
       now: NOW,
       sessionId: 's', requestHash: 'h', extractedSignals: SIGNALS,
       policyResult: { kind: 'abstain' }, classifierResult: null, stickyHit: false,
-      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm',
+      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm', upstreamModel: null,
       mode: 'live', shadowChoice: null, upstreamLatencyMs: 0,
       usage: null, costEstimateUsd: null, classifierCostUsd: null, contentMode: 'full',
     });
@@ -102,7 +103,7 @@ describe('buildDecisionRecord', () => {
       now: NOW,
       sessionId: 's', requestHash: 'h', extractedSignals: SIGNALS,
       policyResult: { kind: 'abstain' }, classifierResult: null, stickyHit: false,
-      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm',
+      chosenModel: 'm', chosenBy: 'classifier', forwardedModel: 'm', upstreamModel: null,
       mode: 'live', shadowChoice: null, upstreamLatencyMs: 0,
       usage: null, costEstimateUsd: null, classifierCostUsd: null, contentMode: 'none',
     });

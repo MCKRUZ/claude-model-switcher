@@ -50,6 +50,7 @@ export interface DecisionRecord {
   readonly chosen_model: string;
   readonly chosen_by: DecisionSource;
   readonly forwarded_model: string;
+  readonly upstream_model: string | null;
   readonly upstream_latency_ms: number;
   readonly usage: UsageFields | null;
   readonly cost_estimate_usd: number | null;

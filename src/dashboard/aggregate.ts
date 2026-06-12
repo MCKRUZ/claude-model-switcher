@@ -20,7 +20,8 @@ export function routingDistribution(
 ): Record<string, number> {
   const dist: Record<string, number> = {};
   for (const r of records) {
-    dist[r.forwarded_model] = (dist[r.forwarded_model] ?? 0) + 1;
+    const model = r.upstream_model ?? r.forwarded_model;
+    dist[model] = (dist[model] ?? 0) + 1;
   }
   return dist;
 }

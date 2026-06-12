@@ -19,6 +19,7 @@ export function mkDecision(over: DecisionPartial): DecisionRecord {
     sticky_hit: false,
     chosen_model: over.forwarded_model,
     chosen_by: 'policy',
+    upstream_model: null,
     upstream_latency_ms: 100,
     usage: null,
     cost_estimate_usd: 0.01,

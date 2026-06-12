@@ -19,6 +19,7 @@ function mkRecord(over: Partial<DecisionRecord> = {}): DecisionRecord {
     chosen_model: 'claude-haiku-4-5-20251001',
     chosen_by: 'policy',
     forwarded_model: 'claude-haiku-4-5-20251001',
+    upstream_model: null,
     upstream_latency_ms: 0,
     usage: null,
     cost_estimate_usd: null,

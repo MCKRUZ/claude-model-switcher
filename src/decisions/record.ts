@@ -34,6 +34,7 @@ export interface BuildDecisionRecordInput {
   readonly chosenModel: string;
   readonly chosenBy: DecisionSource;
   readonly forwardedModel: string;
+  readonly upstreamModel: string | null;
   readonly mode: DecisionMode;
   readonly shadowChoice: string | null;
   readonly upstreamLatencyMs: number;
@@ -71,6 +72,7 @@ export function buildDecisionRecord(input: BuildDecisionRecordInput): DecisionRe
     chosen_model: input.chosenModel,
     chosen_by: input.chosenBy,
     forwarded_model: input.forwardedModel,
+    upstream_model: input.upstreamModel,
     upstream_latency_ms: input.upstreamLatencyMs,
     usage: input.usage,
     cost_estimate_usd: input.costEstimateUsd,

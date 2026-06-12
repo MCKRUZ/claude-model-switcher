@@ -22,6 +22,7 @@ function mkRecord(over: Partial<DecisionRecord> = {}): DecisionRecord {
     chosen_model: 'claude-sonnet-4',
     chosen_by: 'policy',
     forwarded_model: 'claude-sonnet-4',
+    upstream_model: null,
     upstream_latency_ms: 200,
     usage: { input_tokens: 500, output_tokens: 200, cache_read_input_tokens: 100, cache_creation_input_tokens: 0 },
     cost_estimate_usd: 0.01,
