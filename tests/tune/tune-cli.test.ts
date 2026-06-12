@@ -45,9 +45,13 @@ describe('runTune', () => {
 
     const out = bufferStream();
     const err = bufferStream();
+    // Pin `now` to the fixture date so the default 7d --since window always
+    // covers the decisions; otherwise this test rots once wall-clock time
+    // drifts more than a week past the hardcoded fixture timestamps.
     const code = await runTune(['--log-dir', dir, '--config', configCopy], {
       stdout: out.stream,
       stderr: err.stream,
+      now: Date.parse('2026-04-18T12:00:00.000Z'),
     });
 
     expect(code).toBe(0);
