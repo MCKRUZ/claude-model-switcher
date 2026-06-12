@@ -79,4 +79,51 @@ describe('suggest', () => {
     // No escalation available above opus, so no suggestion.
     expect(out).toHaveLength(0);
   });
+
+  it('de-escalates an over-provisioned rule with consistently good outcomes', () => {
+    const stats = mkStats({
+      ruleId: 'sonnet-rule',
+      fires: 100,
+      outcomeCounts: { continued: 95, retried: 1, frustration_next_turn: 1, abandoned: 0, unknown: 3 },
+      chosenModels: new Map([['claude-sonnet-4-6', 100]]),
+    });
+    const out = suggest(new Map([['sonnet-rule', stats]]));
+    expect(out).toHaveLength(1);
+    const s = out[0]!;
+    expect(s.kind).toBe('deescalate-target');
+    expect(s.currentTier).toBe('sonnet');
+    expect(s.proposedTier).toBe('haiku');
+  });
+
+  it('does not de-escalate when there is any meaningful friction', () => {
+    const stats = mkStats({
+      ruleId: 'sonnet-rule',
+      fires: 100,
+      // 10% friction — above the conservative de-escalation ceiling.
+      outcomeCounts: { continued: 85, retried: 5, frustration_next_turn: 5, abandoned: 0, unknown: 5 },
+      chosenModels: new Map([['claude-sonnet-4-6', 100]]),
+    });
+    expect(suggest(new Map([['sonnet-rule', stats]]))).toHaveLength(0);
+  });
+
+  it('does not de-escalate without positive outcome evidence (mostly unknown)', () => {
+    const stats = mkStats({
+      ruleId: 'sonnet-rule',
+      fires: 100,
+      // Low friction but no evidence it went well — almost all untagged.
+      outcomeCounts: { continued: 5, retried: 0, frustration_next_turn: 0, abandoned: 0, unknown: 95 },
+      chosenModels: new Map([['claude-sonnet-4-6', 100]]),
+    });
+    expect(suggest(new Map([['sonnet-rule', stats]]))).toHaveLength(0);
+  });
+
+  it('does not de-escalate a haiku rule (already the floor)', () => {
+    const stats = mkStats({
+      ruleId: 'haiku-rule',
+      fires: 100,
+      outcomeCounts: { continued: 98, retried: 1, frustration_next_turn: 1, abandoned: 0, unknown: 0 },
+      chosenModels: new Map([['claude-haiku-4-5-20251001', 100]]),
+    });
+    expect(suggest(new Map([['haiku-rule', stats]]))).toHaveLength(0);
+  });
 });
