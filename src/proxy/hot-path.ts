@@ -17,6 +17,8 @@ import { passThrough } from './pass-through.js';
 import { routeRequest, createSessionContext, type RouteResult } from './route.js';
 import { buildDecisionRecord } from '../decisions/record.js';
 import { createStickyStore, type StickyStore } from '../sticky/store.js';
+import { createRaceClassifier } from '../classifier/index.js';
+import type { Classifier } from '../classifier/types.js';
 
 const DEFAULT_STICKY_TTL_MS = 7_200_000;
 
@@ -27,11 +29,28 @@ export interface HotPathDeps {
   readonly costContext?: CostContext;
 }
 
+interface RoutingState {
+  readonly stickyStore: StickyStore;
+  readonly classifier: Classifier | null;
+}
+
+// Per-handler state built once at startup. The classifier captures its
+// config/pricing here, mirroring the sticky store; both are null-safe when
+// routing is disabled (no config store).
+function createRoutingState(deps: HotPathDeps): RoutingState {
+  const initialConfig = deps.configStore?.getCurrent();
+  const stickyStore = createStickyStore({
+    ttlMs: initialConfig?.stickyModel.sessionTtlMs ?? DEFAULT_STICKY_TTL_MS,
+  });
+  const classifier: Classifier | null = initialConfig
+    ? createRaceClassifier({ config: initialConfig.classifier, pricing: initialConfig.pricing })
+    : null;
+  return { stickyStore, classifier };
+}
+
 export function makeHotPathHandler(deps: HotPathDeps) {
   const session = createSessionContext();
-  const stickyStore = createStickyStore({
-    ttlMs: deps.configStore?.getCurrent().stickyModel.sessionTtlMs ?? DEFAULT_STICKY_TTL_MS,
-  });
+  const { stickyStore, classifier } = createRoutingState(deps);
   const through = passThrough(deps);
 
   return async function hotPath(req: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -50,7 +69,7 @@ export function makeHotPathHandler(deps: HotPathDeps) {
       await reply.code(400).send({ error: 'invalid-json', message: spliced.error.message });
       return;
     }
-    const routed = applyRouting(spliced.value.parsed, spliced.value.buffer, req, deps, session, stickyStore);
+    const routed = await applyRouting(spliced.value.parsed, spliced.value.buffer, req, deps, session, stickyStore, classifier);
     const outHeaders = routed.rawHeaders;
     const path = buildUpstreamPath(req.url);
     void reply.hijack();
@@ -85,19 +104,20 @@ interface RoutedBody {
   readonly route: RouteResult | null;
 }
 
-function applyRouting(
+async function applyRouting(
   parsed: unknown,
   originalBuffer: Buffer,
   req: FastifyRequest,
   deps: HotPathDeps,
   session: ReturnType<typeof createSessionContext>,
   stickyStore: StickyStore,
-): RoutedBody {
+  classifier: Classifier | null,
+): Promise<RoutedBody> {
   const rawHeaders = filterRequestHeaders(req.raw.rawHeaders).rawHeaders;
   if (!deps.configStore) return { body: originalBuffer, rawHeaders, route: null };
   const config = deps.configStore.getCurrent();
   const headers = req.headers as Readonly<Record<string, string | string[] | undefined>>;
-  const route = routeRequest(parsed, headers, config, session, stickyStore, deps.logger);
+  const route = await routeRequest(parsed, headers, config, session, stickyStore, classifier, deps.logger);
   if (route.forwardedModel === route.originalModel) {
     return { body: originalBuffer, rawHeaders, route };
   }

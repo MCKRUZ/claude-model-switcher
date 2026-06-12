@@ -3,7 +3,7 @@ import type { CcmuxConfig } from '../config/schema.js';
 import type { Signals, SessionContext } from '../signals/types.js';
 import type { PolicyResult, Rule } from '../policy/dsl.js';
 import type { DecisionSource, DecisionMode } from '../decisions/types.js';
-import type { ClassifierResult, Tier } from '../classifier/types.js';
+import type { Classifier, ClassifierInput, ClassifierResult, Tier } from '../classifier/types.js';
 import type { StickyStore } from '../sticky/store.js';
 import type { StickyChosenBy } from '../sticky/types.js';
 import { extractSignals } from '../signals/extract.js';
@@ -34,6 +34,10 @@ export interface RouteDecision {
 export interface RouteResult extends RouteDecision {
   readonly signals: Signals;
 }
+
+// A pre-bound classifier invocation: the caller closes over the ClassifierInput
+// (body, headers, signals) so decideRoute only supplies the race deadline.
+export type ClassifyFn = (deadline: AbortSignal) => Promise<ClassifierResult | null>;
 
 export function createSessionContext(): SessionContext {
   const retryCounts = new Map<string, number>();
@@ -169,14 +173,58 @@ function resolveViaSticky(
   return { modelId: originalModel, chosenBy: 'fallback', stickyHit: false };
 }
 
-// Pure routing decision. No I/O — signals are supplied by the caller.
-export function decideRoute(
+async function runClassifier(classify: ClassifyFn, timeoutMs: number): Promise<ClassifierResult | null> {
+  try {
+    return await classify(AbortSignal.timeout(timeoutMs));
+  } catch {
+    return null;
+  }
+}
+
+// Only act on a classifier suggestion when it clears the per-source confidence
+// gate; a low-confidence guess is worse than honoring the client's request.
+function isConfident(cls: ClassifierResult, config: CcmuxConfig): boolean {
+  const thresholds = config.classifier.confidenceThresholds;
+  const threshold = cls.source === 'haiku' ? thresholds.haiku : thresholds.heuristic;
+  return cls.confidence >= threshold;
+}
+
+// Apply the classifier's tier and, when stickiness is on, persist it so the
+// session stays on that tier for subsequent turns.
+function applyClassifierTier(
+  store: StickyStore,
+  config: CcmuxConfig,
+  signals: Signals,
+  tier: Tier,
+  tierMap: ReadonlyMap<string, Tier>,
+  now: number,
+): ResolvedModel {
+  const modelId = modelForTier(tier, tierMap);
+  if (config.stickyModel.enabled) {
+    // The synthetic ruleId is internal to the sticky write; the decision record
+    // still logs the real policy result (an abstain) plus the classifier_result.
+    resolveStickyDecision(store, {
+      sessionId: signals.sessionId,
+      policyResult: { kind: 'matched', ruleId: '__classifier__', result: { choice: { modelId } } },
+      explicitModel: null,
+      defaultTier: tier,
+      tierMap,
+      now,
+    });
+  }
+  return { modelId, chosenBy: 'classifier', stickyHit: false };
+}
+
+// Pure routing decision. No request I/O — signals and the classifier thunk are
+// supplied by the caller, which keeps this fully unit-testable.
+export async function decideRoute(
   signals: Signals,
   originalModel: string,
   config: CcmuxConfig,
   store: StickyStore,
   now: number,
-): RouteDecision {
+  classify?: ClassifyFn,
+): Promise<RouteDecision> {
   const rules = compileRules(config);
   const policy = evaluate(rules, signals);
   const tierMap = buildTierMap(config);
@@ -187,6 +235,18 @@ export function decideRoute(
   } else {
     const r = resolveModel(policy, originalModel, tierMap);
     resolved = { modelId: r.modelId, chosenBy: r.chosenBy, stickyHit: false };
+  }
+
+  // Classifier fills the gap only when nothing else resolved the model: a new
+  // or expired session whose request matched no rule and carried no explicit
+  // model. That `fallback` outcome is the single trigger — it already excludes
+  // policy hits, explicit models, and live sticky sessions.
+  let classifierResult: ClassifierResult | null = null;
+  if (resolved.chosenBy === 'fallback' && config.classifier.enabled && classify !== undefined) {
+    classifierResult = await runClassifier(classify, config.classifier.timeoutMs);
+    if (classifierResult !== null && isConfident(classifierResult, config)) {
+      resolved = applyClassifierTier(store, config, signals, classifierResult.suggestedModel, tierMap, now);
+    }
   }
 
   // Shadow mode: never change live traffic — forward the client's model and
@@ -200,7 +260,7 @@ export function decideRoute(
       shadowChoice: resolved.modelId !== originalModel ? resolved.modelId : null,
       mode: 'shadow',
       policyResult: policy,
-      classifierResult: null,
+      classifierResult,
     };
   }
 
@@ -212,20 +272,52 @@ export function decideRoute(
     shadowChoice: null,
     mode: 'live',
     policyResult: policy,
-    classifierResult: null,
+    classifierResult,
   };
 }
 
-export function routeRequest(
+// Lower-cased, string-valued view of the incoming headers — the Haiku
+// classifier reads auth/version/beta from this to authenticate its own call.
+function lowerStringHeaders(
+  headers: Readonly<Record<string, string | string[] | undefined>>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === 'string') out[key.toLowerCase()] = value;
+    else if (Array.isArray(value) && typeof value[0] === 'string') out[key.toLowerCase()] = value[0];
+  }
+  return out;
+}
+
+function buildClassifyFn(
+  classifier: Classifier | null,
+  signals: Signals,
+  parsedBody: unknown,
+  headers: Readonly<Record<string, string | string[] | undefined>>,
+  config: CcmuxConfig,
+): ClassifyFn | undefined {
+  if (classifier === null || !config.classifier.enabled) return undefined;
+  const input: ClassifierInput = {
+    signals,
+    body: parsedBody,
+    requestHash: signals.requestHash,
+    incomingHeaders: lowerStringHeaders(headers),
+  };
+  return (deadline) => classifier.classify(input, deadline);
+}
+
+export async function routeRequest(
   parsedBody: unknown,
   headers: Readonly<Record<string, string | string[] | undefined>>,
   config: CcmuxConfig,
   session: SessionContext,
   store: StickyStore,
+  classifier: Classifier | null,
   logger: Logger,
-): RouteResult {
+): Promise<RouteResult> {
   const signals = extractSignals(parsedBody, headers, session, logger);
   const originalModel = getModelFromBody(parsedBody);
-  const decision = decideRoute(signals, originalModel, config, store, Date.now());
+  const classify = buildClassifyFn(classifier, signals, parsedBody, headers, config);
+  const decision = await decideRoute(signals, originalModel, config, store, Date.now(), classify);
   return { ...decision, signals };
 }
