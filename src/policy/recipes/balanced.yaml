@@ -1,5 +1,10 @@
 # Recipe: balanced — `ccmux init` default. Haiku for trivial, Opus for plan, escalate on friction.
 port: 7879
+# mode: live applies routing to real traffic. To validate first, set `mode: shadow`:
+# the client's requested model is forwarded unchanged while the would-be routing
+# decision is logged (inspect with `ccmux report` / `ccmux tune`). Note: shadow still
+# runs the classifier (Haiku calls) to compute the would-be choice — add
+# `classifier: { enabled: false }` below for zero-cost, rules-and-sticky-only monitoring.
 mode: live
 rules:
   # Plan mode deserves Opus.
