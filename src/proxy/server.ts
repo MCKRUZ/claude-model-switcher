@@ -101,7 +101,12 @@ function registerRoutes(app: FastifyInstance, opts: ProxyServerOptions): void {
   const health = makeHealthHandler({
     startTimeMs: Date.now(),
     version: '0.0.0',
-    mode: 'passthrough',
+    // Without a config store the proxy is a plain passthrough; with one it
+    // actively routes — report shadow vs enforce (live) from the current config.
+    mode: () => {
+      if (opts.configStore === undefined) return 'passthrough';
+      return opts.configStore.getCurrent().mode === 'shadow' ? 'shadow' : 'enforce';
+    },
   });
   app.post('/v1/messages', hot);
   app.route({ method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'], url: '/v1/*', handler: through });

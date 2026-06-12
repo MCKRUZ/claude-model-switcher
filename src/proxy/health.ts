@@ -1,10 +1,14 @@
 // GET /healthz handler.
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+export type HealthMode = 'passthrough' | 'enforce' | 'shadow';
+
 export interface HealthDeps {
   readonly startTimeMs: number;
   readonly version: string;
-  readonly mode: 'passthrough' | 'enforce' | 'shadow';
+  // A getter, not a value: config (and thus the routing mode) can hot-reload,
+  // so /healthz must report the current mode rather than the startup one.
+  readonly mode: () => HealthMode;
 }
 
 export function makeHealthHandler(deps: HealthDeps) {
@@ -15,7 +19,7 @@ export function makeHealthHandler(deps: HealthDeps) {
       status: 'ok',
       version: deps.version,
       uptimeMs: Date.now() - deps.startTimeMs,
-      mode: deps.mode,
+      mode: deps.mode(),
       port,
     });
   };

@@ -91,7 +91,8 @@ describe('cli status', () => {
     expect(text).toMatch(new RegExp(`pid\\s+${process.pid}`));
     expect(text).toMatch(new RegExp(`port\\s+${started.port}`));
     expect(text).toMatch(/version/);
-    expect(text).toMatch(/mode\s+passthrough/);
+    // Real proxy with a config store + default (live) config → enforce.
+    expect(text).toMatch(/mode\s+enforce/);
     expect(text).toMatch(/uptimeMs\s+\d+/);
   });
 });
