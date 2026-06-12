@@ -14,7 +14,11 @@ import { streamRequest, type UpstreamResponseInfo } from './upstream.js';
 import { wireAbort } from './abort.js';
 import { emitSseError } from './errors.js';
 import { passThrough } from './pass-through.js';
-import { routeRequest, buildDecisionRecord, createSessionContext, type RouteResult } from './route.js';
+import { routeRequest, createSessionContext, type RouteResult } from './route.js';
+import { buildDecisionRecord } from '../decisions/record.js';
+import { createStickyStore, type StickyStore } from '../sticky/store.js';
+
+const DEFAULT_STICKY_TTL_MS = 7_200_000;
 
 export interface HotPathDeps {
   readonly logger: Logger;
@@ -25,6 +29,9 @@ export interface HotPathDeps {
 
 export function makeHotPathHandler(deps: HotPathDeps) {
   const session = createSessionContext();
+  const stickyStore = createStickyStore({
+    ttlMs: deps.configStore?.getCurrent().stickyModel.sessionTtlMs ?? DEFAULT_STICKY_TTL_MS,
+  });
   const through = passThrough(deps);
 
   return async function hotPath(req: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -43,7 +50,7 @@ export function makeHotPathHandler(deps: HotPathDeps) {
       await reply.code(400).send({ error: 'invalid-json', message: spliced.error.message });
       return;
     }
-    const routed = applyRouting(spliced.value.parsed, spliced.value.buffer, req, deps, session);
+    const routed = applyRouting(spliced.value.parsed, spliced.value.buffer, req, deps, session, stickyStore);
     const outHeaders = routed.rawHeaders;
     const path = buildUpstreamPath(req.url);
     void reply.hijack();
@@ -84,12 +91,13 @@ function applyRouting(
   req: FastifyRequest,
   deps: HotPathDeps,
   session: ReturnType<typeof createSessionContext>,
+  stickyStore: StickyStore,
 ): RoutedBody {
   const rawHeaders = filterRequestHeaders(req.raw.rawHeaders).rawHeaders;
   if (!deps.configStore) return { body: originalBuffer, rawHeaders, route: null };
   const config = deps.configStore.getCurrent();
   const headers = req.headers as Readonly<Record<string, string | string[] | undefined>>;
-  const route = routeRequest(parsed, headers, config, session, deps.logger);
+  const route = routeRequest(parsed, headers, config, session, stickyStore, deps.logger);
   if (route.forwardedModel === route.originalModel) {
     return { body: originalBuffer, rawHeaders, route };
   }
@@ -126,9 +134,30 @@ function logDecision(
   if (!route || !deps.decisionWriter) return;
   const sessionId = (req.headers['x-claude-code-session-id'] as string) ?? 'unknown';
   const usage = usageInfo?.usage ?? null;
-  const model = usageInfo?.upstreamModel ?? route.forwardedModel;
-  const cost = deps.costContext ? computeCostUsd(model, usage, deps.costContext) : null;
-  deps.decisionWriter.append(buildDecisionRecord(route, sessionId, latencyMs, usage, cost));
+  const upstreamModel = usageInfo?.upstreamModel ?? null;
+  const chosenModel = upstreamModel ?? route.forwardedModel;
+  const cost = deps.costContext ? computeCostUsd(chosenModel, usage, deps.costContext) : null;
+  const contentMode = deps.configStore?.getCurrent().logging.content ?? 'hashed';
+  deps.decisionWriter.append(buildDecisionRecord({
+    now: new Date(),
+    sessionId,
+    requestHash: route.signals.requestHash,
+    extractedSignals: route.signals,
+    policyResult: route.policyResult,
+    classifierResult: route.classifierResult,
+    stickyHit: route.stickyHit,
+    chosenModel,
+    chosenBy: route.chosenBy,
+    forwardedModel: route.forwardedModel,
+    upstreamModel,
+    mode: route.mode,
+    shadowChoice: route.shadowChoice,
+    upstreamLatencyMs: latencyMs,
+    usage,
+    costEstimateUsd: cost,
+    classifierCostUsd: route.classifierResult?.classifierCostUsd ?? null,
+    contentMode,
+  }));
 }
 
 function buildUpstreamPath(url: string): string {
