@@ -10,6 +10,9 @@ import { parseDuration } from '../report/duration.js';
 import { analyze } from '../tune/analyze.js';
 import { suggest } from '../tune/suggest.js';
 import { renderDiff } from '../tune/diff.js';
+import { summarizeSwitches } from '../tune/switches.js';
+import { readDecisions } from '../decisions/reader.js';
+import type { DecisionRecord } from '../decisions/types.js';
 import { fail, ok, type Result } from '../types/result.js';
 
 export interface RunTuneOpts {
@@ -62,6 +65,7 @@ export async function runTune(
   const sinceIso = new Date(now - durationResult.value).toISOString();
 
   const result = await analyze({ logDir, since: sinceIso });
+  await reportSwitches(logDir, sinceIso, stderr);
   const suggestions = suggest(result.rules);
   if (suggestions.length === 0) {
     stderr.write('ccmux tune: no suggestions\n');
@@ -79,6 +83,24 @@ export async function runTune(
     stderr.write(`ccmux tune: ${s.ruleId} — ${s.rationale}\n`);
   }
   return 0;
+}
+
+// Cache-cost observability: surface mid-session model switches (cache rebuilds)
+// to stderr when any occur. Silent when there are none, so it never disturbs the
+// stdout diff contract.
+async function reportSwitches(
+  logDir: string,
+  since: string,
+  stderr: NodeJS.WritableStream,
+): Promise<void> {
+  const records: DecisionRecord[] = [];
+  for await (const rec of readDecisions(logDir, { since })) records.push(rec);
+  const s = summarizeSwitches(records);
+  if (s.totalSwitches === 0) return;
+  stderr.write(
+    `ccmux tune: ${s.totalSwitches} mid-session model switch(es) across ` +
+      `${s.sessionsWithSwitches} session(s), ~${s.cacheRebuildTokens} cache-rebuild tokens\n`,
+  );
 }
 
 function validateLogDir(logDir: string, stderr: NodeJS.WritableStream): boolean {
