@@ -125,6 +125,14 @@ describe('cache-buster detector', () => {
     expect(second.cacheBuster?.kinds).toEqual(['hex_id']);
   });
 
+  it('flags ids glued to a prefix with an underscore', () => {
+    extract({ system: 'Run session_0a1b2c3d4e5f60718293a4b5c6d7e8f9 and req_123e4567-e89b-12d3-a456-426614174000.' });
+    const second = extract({
+      system: 'Run session_f9e8d7c6b5a493827160f5e4d3c2b1a0 and req_9b2f6c1e-0d4a-4f7b-8c3e-5a1d2e3f4a5b.',
+    });
+    expect(second.cacheBuster?.kinds).toEqual(['uuid', 'hex_id']);
+  });
+
   it('does not mask short hex-looking words, so a changed one is real content', () => {
     extract({ system: 'The word is deadbeef here.' });
     const second = extract({ system: 'The word is feedface here.' });

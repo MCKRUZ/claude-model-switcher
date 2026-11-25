@@ -35,12 +35,16 @@ interface MaskRule {
   readonly accepts?: (value: string) => boolean;
 }
 
+// UUIDs and hex ids are bounded by letters and digits only, not \b: an id glued
+// to a prefix with an underscore (session_<hex>) must still be recognised.
+//
 // Order matters: UUIDs before anything built from digits; dates before times
 // so the date part of an ISO-8601 date-time is consumed first; hex ids last.
 const MASK_RULES: readonly MaskRule[] = [
   {
     kind: 'uuid',
-    pattern: /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+    pattern:
+      /(?<![0-9a-z])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-z])/gi,
   },
   { kind: 'date', pattern: /(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)/g },
   {
@@ -49,7 +53,7 @@ const MASK_RULES: readonly MaskRule[] = [
   },
   {
     kind: 'hex_id',
-    pattern: new RegExp(`\\b[0-9a-f]{${HEX_ID_MIN_LEN},}\\b`, 'gi'),
+    pattern: new RegExp(`(?<![0-9a-z])[0-9a-f]{${HEX_ID_MIN_LEN},}(?![0-9a-z])`, 'gi'),
     // A run of letters a-f only is a word, not an id.
     accepts: (value) => /\d/.test(value),
   },

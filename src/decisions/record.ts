@@ -61,7 +61,8 @@ function projectClassifier(c: ClassifierResult | null): DecisionClassifierResult
 }
 
 // Lifted from signals to its own top-level field so it is written the same way
-// in every content mode (the redaction allow-lists never see it).
+// in every content mode (the redaction allow-lists never see it). Copying just
+// these two fields keeps the log to a fingerprint and kind labels.
 function projectCacheBuster(signals: Signals): Pick<DecisionRecord, 'cache_buster'> {
   const finding = signals.cacheBuster;
   if (finding === undefined) return {};
