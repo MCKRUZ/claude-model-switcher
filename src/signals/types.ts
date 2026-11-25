@@ -1,6 +1,17 @@
 // Signals — frozen input shape shared by policy engine, classifier, and feedback.
 // Contract is consumed verbatim by sections 08, 11/12, and beyond.
 
+// Kinds of changing value the cache-buster detector can find, in report order.
+export const CACHE_BUSTER_KINDS = ["date", "time", "uuid", "hex_id"] as const;
+export type CacheBusterKind = (typeof CACHE_BUSTER_KINDS)[number];
+
+// Finding for a request whose cached prefix changed only by masked values.
+// Holds a salted-HMAC fingerprint and kind labels only — never prompt text.
+export interface CacheBusterFinding {
+  readonly kinds: readonly CacheBusterKind[];
+  readonly prefix_fingerprint: string;
+}
+
 export interface Signals {
   readonly planMode: boolean | null;
   readonly messageCount: number;
@@ -16,6 +27,9 @@ export interface Signals {
   readonly betaFlags: readonly string[];
   readonly sessionId: string;
   readonly requestHash: string;
+  // Present only when the request was flagged. Deliberately NOT in the policy
+  // KNOWN_SIGNALS allow-list: rules cannot read it, so routing is unaffected.
+  readonly cacheBuster?: CacheBusterFinding;
 }
 
 export interface SessionContext {

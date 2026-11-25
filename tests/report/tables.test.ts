@@ -14,6 +14,7 @@ function mkData(over: Partial<ReportData> = {}): ReportData {
     totalWithOverhead: null,
     cacheHitRate: null,
     latency: { p50: null, p95: null, p99: null },
+    cacheBusters: { flaggedCount: 0, byKind: [], cacheCreationTokens: 0, cacheReadTokens: 0 },
     ...over,
   };
 }

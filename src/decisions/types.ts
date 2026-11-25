@@ -4,6 +4,7 @@
 
 import type { ContentMode } from '../config/schema.js';
 import type { Tier } from '../classifier/types.js';
+import type { CacheBusterFinding } from '../signals/types.js';
 
 export type { ContentMode };
 
@@ -57,6 +58,10 @@ export interface DecisionRecord {
   readonly classifier_cost_usd: number | null;
   readonly mode: DecisionMode;
   readonly shadow_choice: string | null;
+  // Present only on requests flagged by the cache-buster detector. Salted
+  // hashes and kind labels only; identical in every content mode. Lines
+  // written before this field existed simply lack it (read as "not flagged").
+  readonly cache_buster?: CacheBusterFinding;
 }
 
 export interface DropEvent {
