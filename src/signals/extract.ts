@@ -7,7 +7,8 @@ import type {
   AnthropicRequestBody,
   AnthropicToolDefinition,
 } from '../types/anthropic.js';
-import type { Signals, SessionContext } from './types.js';
+import type { CacheBusterFinding, Signals, SessionContext } from './types.js';
+import { detectCacheBuster } from './cache-buster.js';
 import { detectPlanMode } from './plan-mode.js';
 import { detectFrustration } from './frustration.js';
 import { estimateInputTokens } from './tokens.js';
@@ -131,6 +132,10 @@ export function extractSignals(
   );
   const hash = safe(logger, 'requestHash', '0'.repeat(32), () => requestHash(canonical));
 
+  const cacheBuster = safe(logger, 'cache-buster', null as CacheBusterFinding | null, () =>
+    detectCacheBuster(body),
+  );
+
   return Object.freeze({
     planMode: safe(logger, 'plan-mode', null as boolean | null, () => detectPlanMode(body?.system)),
     messageCount: safe(logger, 'messageCount', 0, () => (Array.isArray(messages) ? messages.length : 0)),
@@ -146,5 +151,6 @@ export function extractSignals(
     betaFlags,
     sessionId: safe(logger, 'session-id', '0'.repeat(32), () => deriveSessionId(body, toolNames)),
     requestHash: hash,
+    ...(cacheBuster !== null ? { cacheBuster } : {}),
   });
 }

@@ -60,6 +60,17 @@ function projectClassifier(c: ClassifierResult | null): DecisionClassifierResult
   };
 }
 
+// Lifted from signals to its own top-level field so it is written the same way
+// in every content mode (the redaction allow-lists never see it). Copying just
+// these two fields keeps the log to a fingerprint and kind labels.
+function projectCacheBuster(signals: Signals): Pick<DecisionRecord, 'cache_buster'> {
+  const finding = signals.cacheBuster;
+  if (finding === undefined) return {};
+  return {
+    cache_buster: { kinds: [...finding.kinds], prefix_fingerprint: finding.prefix_fingerprint },
+  };
+}
+
 export function buildDecisionRecord(input: BuildDecisionRecordInput): DecisionRecord {
   return {
     timestamp: input.now.toISOString(),
@@ -79,5 +90,6 @@ export function buildDecisionRecord(input: BuildDecisionRecordInput): DecisionRe
     classifier_cost_usd: input.classifierCostUsd,
     mode: input.mode,
     shadow_choice: input.shadowChoice,
+    ...projectCacheBuster(input.extractedSignals),
   };
 }

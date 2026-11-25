@@ -16,6 +16,7 @@ import { stat } from 'node:fs/promises';
 import type { PricingEntry } from '../config/schema.js';
 import type { DecisionRecord } from '../decisions/types.js';
 import { readDecisions } from '../decisions/reader.js';
+import { CACHE_BUSTER_KINDS, type CacheBusterKind } from '../signals/types.js';
 import { fail, ok, type Result } from '../types/result.js';
 
 export type GroupBy = 'model' | 'project';
@@ -49,6 +50,20 @@ export interface LatencyPercentiles {
   readonly p99: number | null;
 }
 
+export interface CacheBusterKindRow {
+  readonly kind: CacheBusterKind;
+  readonly count: number;
+}
+
+// Requests flagged by the cache-buster detector, with what their cache usage
+// cost. Records written before the field existed count as not flagged.
+export interface CacheBusterSummary {
+  readonly flaggedCount: number;
+  readonly byKind: readonly CacheBusterKindRow[];
+  readonly cacheCreationTokens: number;
+  readonly cacheReadTokens: number;
+}
+
 export interface ReportData {
   readonly totalCount: number;
   readonly windowStartIso: string;
@@ -59,6 +74,7 @@ export interface ReportData {
   readonly totalWithOverhead: number | null;
   readonly cacheHitRate: number | null;
   readonly latency: LatencyPercentiles;
+  readonly cacheBusters: CacheBusterSummary;
 }
 
 interface Bucket {
@@ -80,6 +96,10 @@ interface Accum {
   sumCacheRead: number;
   sumInput: number;
   readonly latencies: number[];
+  flaggedCount: number;
+  flaggedCreation: number;
+  flaggedRead: number;
+  readonly flaggedKinds: Map<CacheBusterKind, number>;
 }
 
 function freshAccum(): Accum {
@@ -94,6 +114,10 @@ function freshAccum(): Accum {
     sumCacheRead: 0,
     sumInput: 0,
     latencies: [],
+    flaggedCount: 0,
+    flaggedCreation: 0,
+    flaggedRead: 0,
+    flaggedKinds: new Map(),
   };
 }
 
@@ -145,6 +169,35 @@ function absorb(acc: Accum, rec: DecisionRecord, groupBy: GroupBy): void {
   if (Number.isFinite(rec.upstream_latency_ms) && rec.upstream_latency_ms >= 0) {
     acc.latencies.push(rec.upstream_latency_ms);
   }
+  absorbCacheBuster(acc, rec);
+}
+
+// Log lines are read from disk, so the field is validated rather than trusted:
+// anything that is not an object with a kinds array counts as not flagged.
+function absorbCacheBuster(acc: Accum, rec: DecisionRecord): void {
+  const finding: unknown = rec.cache_buster;
+  if (finding === null || typeof finding !== 'object') return;
+  const rawKinds = (finding as { kinds?: unknown }).kinds;
+  if (!Array.isArray(rawKinds)) return;
+  acc.flaggedCount += 1;
+  for (const kind of CACHE_BUSTER_KINDS) {
+    if (rawKinds.includes(kind)) acc.flaggedKinds.set(kind, (acc.flaggedKinds.get(kind) ?? 0) + 1);
+  }
+  acc.flaggedCreation += rec.usage?.cache_creation_input_tokens ?? 0;
+  acc.flaggedRead += rec.usage?.cache_read_input_tokens ?? 0;
+}
+
+function summarizeCacheBusters(acc: Accum): CacheBusterSummary {
+  const byKind = CACHE_BUSTER_KINDS.flatMap((kind) => {
+    const count = acc.flaggedKinds.get(kind) ?? 0;
+    return count > 0 ? [{ kind, count }] : [];
+  }).sort((a, b) => b.count - a.count);
+  return {
+    flaggedCount: acc.flaggedCount,
+    byKind,
+    cacheCreationTokens: acc.flaggedCreation,
+    cacheReadTokens: acc.flaggedRead,
+  };
 }
 
 function finalize(acc: Accum, sinceIso: string, groupBy: GroupBy): ReportData {
@@ -166,6 +219,7 @@ function finalize(acc: Accum, sinceIso: string, groupBy: GroupBy): ReportData {
     totalWithOverhead: acc.anyWith ? acc.withTotal : null,
     cacheHitRate: denom > 0 ? acc.sumCacheRead / denom : null,
     latency: computePercentiles(acc.latencies),
+    cacheBusters: summarizeCacheBusters(acc),
   };
 }
 

@@ -46,6 +46,18 @@ Regardless of content mode, the decision log always records:
 - Extracted signals (token count, tool count, plan mode, etc.)
 - Confidence score
 - Cost estimate
+- `cache_buster` (only on requests the cache-buster detector flagged): the kinds of changing value found in the cached prompt prefix (`date`, `time`, `uuid`, `hex_id`) and a fingerprint of the prefix with those values masked out
+
+### The `cache_buster` field
+
+The detector compares each request's cached prefix (tool definitions, then system prompt) with earlier requests to spot values such as dates or UUIDs that change every time and defeat prompt caching. It reads the request; it never changes what is forwarded.
+
+The field is identical in `hashed`, `full` and `none` modes. It holds only:
+
+- **Value kinds.** Labels such as `date`. The values themselves are never written.
+- **A fingerprint.** HMAC-SHA256 of the masked prefix, truncated, keyed with a random secret generated when ccmux starts and never stored. Unlike the plain `sha256` used by `hashed` mode, it cannot be compared across restarts, so two ccmux runs cannot be linked through it, and the prefix cannot be recovered from it.
+
+No prompt text, tool text or raw date, time or id is logged. Detection state lives in memory only, is capped in size, and is lost when ccmux exits. In `full` mode the same finding may also appear inside `extracted_signals`; it carries no more than the top-level field.
 
 ## What is never logged
 

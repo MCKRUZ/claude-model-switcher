@@ -1,13 +1,20 @@
 // ASCII + JSON renderers for report data. No I/O — callers write strings to
 // their own stream. Keeps rendering pure for testability.
 
-import type { CostRow, LatencyPercentiles, ReportData, RoutingRow } from './aggregate.js';
+import type {
+  CacheBusterSummary,
+  CostRow,
+  LatencyPercentiles,
+  ReportData,
+  RoutingRow,
+} from './aggregate.js';
 
 export function renderAscii(data: ReportData): string {
   const sections: readonly string[] = [
     renderRouting(data.routingDistribution),
     renderCost(data.groupBy, data.costBreakdown, data.totalWithoutOverhead, data.totalWithOverhead),
     renderCacheHit(data.cacheHitRate),
+    renderCacheBusters(data.cacheBusters),
     renderLatency(data.latency),
   ];
   return sections.join('\n\n') + '\n';
@@ -45,6 +52,16 @@ function renderCacheHit(rate: number | null): string {
     ['Metric', 'Value'],
     [['cache_read / (cache_read + input)', value]],
   );
+}
+
+function renderCacheBusters(s: CacheBusterSummary): string {
+  const body: string[][] = [
+    ['flagged requests', String(s.flaggedCount)],
+    ...s.byKind.map((r) => [`kind: ${r.kind}`, String(r.count)]),
+    ['cache_creation tokens (flagged)', String(s.cacheCreationTokens)],
+    ['cache_read tokens (flagged)', String(s.cacheReadTokens)],
+  ];
+  return table('Cache busters', ['Metric', 'Value'], body);
 }
 
 function renderLatency(p: LatencyPercentiles): string {

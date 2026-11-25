@@ -53,6 +53,7 @@ Before routing, ccmux parses the request body to extract signals without modifyi
 - `frustration` — markers like "that's wrong", repeated corrections
 - `explicitModel` — if the client specified a model preference
 - `sessionDurationMs`, `projectPath`, `betaFlags`
+- `cacheBuster` — set only when the request's cached prefix (tools, then system prompt) differs from an earlier request's solely by changing values: dates, times, UUIDs or long hex ids. The detector fingerprints the prefix raw and with those values masked (HMAC-SHA256, random per-process salt). A matching masked fingerprint with a different raw one flags the request and records which kinds changed. It keeps a bounded in-memory map of recent prefixes (oldest evicted first), so it works per process and only flags a request after an earlier one was seen; a failure inside it degrades to "not flagged". It is not available to policy rules, so it cannot affect routing. It lands in the decision log as `cache_buster` and feeds the "Cache busters" table in `ccmux report`.
 
 ### Policy engine
 
